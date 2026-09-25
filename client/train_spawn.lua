@@ -9,6 +9,34 @@ TrainWater = 0
 TrainCondition = 0
 
 ---------------------------------------------------------------
+-- CHECK IF A STATION'S SPAWN POINT IS CLEAR OF OTHER TRAINS
+-- Used before auto-spawning a train for a mission, so we don't spawn
+-- on top of / collide with a train already sitting at the station.
+---------------------------------------------------------------
+local trainModelHashSet = nil
+local function GetTrainModelHashSet()
+    if trainModelHashSet then return trainModelHashSet end
+    trainModelHashSet = {}
+    for _, tc in ipairs(Config.Trains) do
+        trainModelHashSet[joaat(tc.model)] = true
+    end
+    return trainModelHashSet
+end
+
+function IsTrainSpawnClear(coords, radius)
+    radius = radius or 20.0
+    local hashes = GetTrainModelHashSet()
+    for _, veh in ipairs(GetGamePool('CVehicle')) do
+        if DoesEntityExist(veh) and hashes[GetEntityModel(veh)] then
+            if GetDistanceBetween(coords, GetEntityCoords(veh)) < radius then
+                return false
+            end
+        end
+    end
+    return true
+end
+
+---------------------------------------------------------------
 -- SPAWN PLAYER TRAIN
 ---------------------------------------------------------------
 function SpawnPlayerTrain(trainDbId, directionReverse, station)
@@ -218,6 +246,9 @@ function CleanupActiveTrain()
 
     -- Cleanup passenger system
     CleanupPassengerTarget()
+
+    -- Cleanup any in-progress delivery cargo (attached or carried barrels)
+    CleanupDeliveryCargo()
 
     -- Close HUD if open
     SendNUIMessage({ action = 'closeTrainHUD' })

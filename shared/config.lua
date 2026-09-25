@@ -522,14 +522,115 @@ Config.Missions = {
 -- DELIVERY DESTINATIONS
 ---------------------------------------------------------------
 Config.DeliveryDestinations = {
-    { coords = vector3(511.73, 654.95, 115.68),    label = 'Heartland Depot',        pay = 20, isWest = false, radius = 25 },
-    { coords = vector3(-3729.1, -2602.83, -12.94), label = 'Armadillo Freight Yard', pay = 30, isWest = true,  radius = 25 },
-    { coords = vector3(1529.37, 422.22, 90.36),    label = 'Emerald Siding',         pay = 18, isWest = false, radius = 25 },
-    { coords = vector3(2732.33, -1445.62, 45.77),  label = 'Saint Denis Yard',       pay = 25, isWest = false, radius = 25 },
-    { coords = vector3(-1319.96, 388.26, 95.49),   label = 'Wallace Depot',          pay = 22, isWest = false, radius = 25 },
-    { coords = vector3(2962.68, 1293.74, 43.91),   label = 'Annesburg Coal Yard',    pay = 28, isWest = false, radius = 25 },
-    { coords = vector3(-1090.56, -588.42, 81.37),  label = 'Riggs Landing',          pay = 20, isWest = false, radius = 25 },
-    { coords = vector3(572.01, 1713.87, 187.76),   label = 'Bacchus Bridge Depot',   pay = 35, isWest = false, radius = 25 },
+    { coords = vector3(487.61, 666.50, 117.39),    label = 'Heartland Depot',        pay = 20, isWest = false, radius = 25 },
+    { coords = vector3(-3735.41, -2602.66, -12.91), label = 'Armadillo Freight Yard', pay = 30, isWest = true,  radius = 25 },
+    { coords = vector3(1521.84, 428.44, 90.68),    label = 'Emerald Siding',         pay = 18, isWest = false, radius = 25 },
+    { coords = vector3(2719.13, -1439.78, 46.22),  label = 'Saint Denis Yard',       pay = 25, isWest = false, radius = 25 },
+    { coords = vector3(-1312.36, 387.03, 95.40),   label = 'Wallace Depot',          pay = 22, isWest = false, radius = 25 },
+    { coords = vector3(2954.11, 1306.58, 44.49),   label = 'Annesburg Coal Yard',    pay = 28, isWest = false, radius = 25 },
+    { coords = vector3(-1095.93, -574.64, 82.41),  label = 'Riggs Landing',          pay = 20, isWest = false, radius = 25 },
+    { coords = vector3(583.91, 1682.86, 187.80),   label = 'Bacchus Bridge Depot',   pay = 35, isWest = false, radius = 25 },
+}
+
+---------------------------------------------------------------
+-- CARGO DELIVERY (physical barrel props for delivery jobs)
+--
+-- Ported from mack-oilcompany's proven wagon-loading workflow
+-- (client/barrel.lua): barrels are NEVER targeted directly while
+-- attached to the train -- ox_target/collision on props attached
+-- to a moving train proved unreliable in testing. Instead:
+--   1. Barrels spawn loose at PlatformSpawnCoords at job start.
+--   2. Player targets a loose barrel to pick it up and carry it.
+--   3. Player targets the TRAIN (flatbed) to load the carried
+--      barrel aboard ("Load Barrel Onto Train").
+--   4. At each leg's destination, player targets the TRAIN again
+--      to take a barrel back into their hands ("Unload Cargo")
+--      and carries it the rest of the way to the drop point.
+--
+-- ONLY appleseed_config supports delivery jobs -- it's the only
+-- train model with a coupled flatbed car (privateflatcar01x) for
+-- barrels to sit on. StartDeliveryMission refuses to start (with
+-- a clear notification) on any other train.
+--
+-- PropModel / CarryOffset / CarryAnim / CarryMoveRate are copied
+-- straight from mack-oilcompany's proven barrel-carry logic,
+-- confirmed working in-game for RSG. TrainAttachOffsets/
+-- PlatformSpawnCoords are still PLACEHOLDERS needing in-game
+-- tuning (same caveat as Config.TrainRobbery's ped/horse models
+-- below).
+-- Disabling `Enabled` reverts to no physical cargo, but note that
+-- delivery legs currently only complete via the carry/drop flow,
+-- so leave this on unless you also restore a walk-based fallback.
+---------------------------------------------------------------
+Config.CargoDelivery = {
+    Enabled              = true,
+    PropModel            = 'p_barrel010x', -- PLACEHOLDER: verify in-game
+    MaxSimultaneous      = 3,              -- should match Config.Missions.delivery.jobLegs; max barrels the flatbed can carry
+
+    RequiredTrainModel   = 'appleseed_config', -- only this train has the flatbed car for barrels
+    FlatbedCarModel      = 'privateflatcar01x', -- the coupled carriage barrels are loaded onto
+
+    -- Where loose barrels spawn for the player to pick up and load onto the train.
+    -- One placeholder entry per station (covering all 4 purchasable companies):
+    -- 'valentine' is confirmed from in-game testing; every other station below
+    -- just reuses that station's own `coords` (heading 0.0) as an untested
+    -- starting point -- check each one in-game and adjust the x/y/z/heading as
+    -- needed (e.g. move it away from doorways/props, face it properly, etc.).
+    PlatformOverrides = {
+        -- heartlands_express
+        valentine  = vector4(-164.49, 636.65, 114.03, 111.05), -- confirmed by testing
+        emerald    = vector4(1525.18, 442.51, 90.68, 0.0),     -- PLACEHOLDER: verify in-game
+        annesburg  = vector4(2938.98, 1282.05, 44.65, 0.0),    -- PLACEHOLDER: verify in-game
+        -- lemoyne_central
+        flatneck   = vector4(-337.13, -360.63, 88.08, 0.0),    -- PLACEHOLDER: verify in-game
+        rhodes     = vector4(1225.77, -1296.45, 76.9, 0.0),    -- PLACEHOLDER: verify in-game
+        saintdenis = vector4(2747.5, -1398.89, 46.18, 0.0),    -- PLACEHOLDER: verify in-game
+        -- cumberland_western
+        bacchus    = vector4(582.49, 1681.07, 187.79, 0.0),    -- PLACEHOLDER: verify in-game
+        wallace    = vector4(-1299.39, 402.09, 95.38, 0.0),    -- PLACEHOLDER: verify in-game
+        riggs      = vector4(-1093.92, -576.97, 82.41, 0.0),   -- PLACEHOLDER: verify in-game
+        -- new_austin_rail
+        armadillo  = vector4(-3729.1, -2602.83, -12.94, 0.0),  -- PLACEHOLDER: verify in-game
+        benedict   = vector4(-5230.27, -3468.65, -20.58, 0.0), -- PLACEHOLDER: verify in-game
+    },
+    -- Used only if a mission is somehow started without a station reference.
+    PlatformFallbackCoords = vector4(-164.49, 636.65, 114.03, 111.05),
+
+    -- Small per-barrel offsets (relative to PlatformSpawnCoords) so multiple loose
+    -- barrels don't spawn stacked on top of each other.
+    PlatformBarrelOffsets = {
+        { x = 0.0, y = 0.0, z = -0.2 },
+        { x = 0.8, y = 0.0, z = -0.2 },
+        { x = 1.6, y = 0.0, z = -0.2 },
+    },
+
+    -- PLACEHOLDER: offsets relative to the resolved flatbed carriage entity's own root (bone 0),
+    -- spread front-to-back along its deck. One entry per simultaneous barrel slot -- add more
+    -- if MaxSimultaneous/jobLegs is increased. x = side offset, y = along the flatbed length,
+    -- z = height above the deck. Still needs in-game tuning -- raise/lower z further if barrels
+    -- are clipped into the flatbed deck or float above it.
+    TrainAttachOffsets = {
+        { x = 0.0, y = -1.5, z = 1.1 },
+        { x = 0.0, y = 0.0,  z = 1.1 },
+        { x = 0.0, y = 1.5,  z = 1.1 },
+    },
+
+    -- Proven values from mack-oilcompany's Config.CarryOffsets.barrel (CP_BeltFront attach point).
+    CarryOffset          = { x = 0.0, y = 0.7, z = -0.2 },
+
+    -- Proven barrel carry animation from mack-oilcompany's AttachBarrelToPlayer.
+    CarryAnim            = { dict = 'mech_carry_box', name = 'walk_heavy' },
+    CarryMoveRate        = 0.7, -- slows the player while carrying, same as mack-oilcompany
+
+    PickupRequiresStopped = true, -- train must be stopped to load/unload barrels
+    MaxTrainSpeedToPickup = 1.5,   -- m/s
+
+    DropRadius            = 4.0,   -- distance from destination coords that completes the leg
+    AbandonDistance       = 100.0, -- distance from the destination that force-fails an active carry
+
+    -- Only one barrel can be unloaded per drop-off: after a delivery, the train
+    -- must move at least this far from that spot before "Unload Cargo" appears again.
+    MinMoveDistance       = 15.0,
 }
 
 ---------------------------------------------------------------

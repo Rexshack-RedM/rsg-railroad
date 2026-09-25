@@ -43,12 +43,14 @@ function GetActiveMissionInfo() return activeMission end
 ---------------------------------------------------------------
 function StartMission(missionType, station, destIndex)
     if activeMission then Notify(locale('mission_active'), 'error') return end
-    if not ActiveTrain or not DoesEntityExist(ActiveTrain) then
-        Notify(locale('mission_no_train'), 'error') return
-    end
     if missionType == 'delivery' then
+        -- StartDeliveryMission handles its own train requirement (it can
+        -- auto-spawn the correct one), so it doesn't need the generic check.
         StartDeliveryMission(station, destIndex)
     elseif missionType == 'maintenance' then
+        if not ActiveTrain or not DoesEntityExist(ActiveTrain) then
+            Notify(locale('mission_no_train'), 'error') return
+        end
         StartMaintenanceMission(station, destIndex)
     end
 end
@@ -57,6 +59,44 @@ end
 -- DELIVERY MISSION (job chain: closest stop each leg)
 ---------------------------------------------------------------
 function StartDeliveryMission(station, destIndex)
+    -- Delivery jobs need a physical flatbed car for the cargo barrels, and only
+    -- appleseed_config is coupled with one. If the player doesn't already have a
+    -- train out, auto-spawn the right one for this station's company (checking
+    -- the track is clear first) instead of requiring a manual deploy beforehand.
+    if Config.CargoDelivery and Config.CargoDelivery.Enabled then
+        if ActiveTrain and DoesEntityExist(ActiveTrain) then
+            if not ActiveTrainConfig or ActiveTrainConfig.model ~= Config.CargoDelivery.RequiredTrainModel then
+                Notify(locale('delivery_wrong_train'), 'error', 8000)
+                return
+            end
+        else
+            local trainConfig = FindTrainConfig(Config.CargoDelivery.RequiredTrainModel, station.company)
+            if not trainConfig then
+                Notify(locale('delivery_wrong_train'), 'error', 8000)
+                return
+            end
+
+            local canSpawn = lib.callback.await('rsg-railroad:canSpawnTrain', false)
+            if not canSpawn then
+                Notify(locale('train_already_spawned'), 'error')
+                return
+            end
+
+            if not IsTrainSpawnClear(station.spawnCoords) then
+                Notify(locale('station_track_occupied'), 'error', 8000)
+                return
+            end
+
+            SpawnConfigTrain(trainConfig, false, station)
+            if not ActiveTrain or not DoesEntityExist(ActiveTrain) then
+                return -- SpawnConfigTrain already notified on failure
+            end
+        end
+    elseif not ActiveTrain or not DoesEntityExist(ActiveTrain) then
+        Notify(locale('mission_no_train'), 'error')
+        return
+    end
+
     local destList = Config.DeliveryDestinations
     if #destList == 0 then return end
 
@@ -80,6 +120,9 @@ function StartDeliveryMission(station, destIndex)
         visited = visited,
     }
 
+    activeMission.cargoProps = SpawnDeliveryCargo(activeMission.totalLegs)
+    Notify(locale('cargo_load_instructions'), 'inform', 10000)
+
     BeginDeliveryLeg(destList[idx])
 end
 
@@ -91,6 +134,8 @@ function BeginDeliveryLeg(dest)
     if missionBlip then RemoveBlip(missionBlip) end
     missionBlip = CreateMissionBlip(dest.coords, dest.label, dest.radius or 25.0, 0xFF0000FF)
 
+    SetCargoDestination(dest)
+
     local legTag = activeMission.totalLegs > 1 and locale('mission_leg_tag', activeMission.leg, activeMission.totalLegs) or ''
     Notify(locale('mission_cargo', cargo.label), 'inform', 7000)
     Wait(500)
@@ -99,6 +144,7 @@ function BeginDeliveryLeg(dest)
     local myLeg = activeMission.leg
     CreateThread(function()
         local notifiedClose = false
+        local notifiedArrived = false
         while activeMission and activeMission.type == 'delivery' and activeMission.leg == myLeg do
             Wait(2000)
             if not ActiveTrain or not DoesEntityExist(ActiveTrain) or IsEntityDead(PlayerPedId()) then
@@ -109,18 +155,9 @@ function BeginDeliveryLeg(dest)
                 notifiedClose = true
                 Notify(locale('mission_approaching', dest.label), 'inform', 6000)
             end
-            if dist < dest.radius then
-                Notify(locale('mission_arrived_walk', dest.label), 'success', 8000)
-                while activeMission and activeMission.leg == myLeg do
-                    Wait(500)
-                    if GetDistanceBetween(GetEntityCoords(PlayerPedId()), dest.coords) < 8 then
-                        CompleteDeliveryLeg() break
-                    end
-                    if not ActiveTrain or not DoesEntityExist(ActiveTrain) then
-                        FailMission() break
-                    end
-                end
-                break
+            if dist < (dest.radius or 25.0) and not notifiedArrived then
+                notifiedArrived = true
+                Notify(locale('mission_carry_to', dest.label), 'success', 8000)
             end
         end
     end)
@@ -260,4 +297,5 @@ end
 function CleanupMission()
     activeMission = nil
     if missionBlip then RemoveBlip(missionBlip) missionBlip = nil end
+    CleanupDeliveryCargo()
 end
