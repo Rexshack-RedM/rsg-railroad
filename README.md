@@ -181,3 +181,5 @@ If the selected language's file is missing, or a key hasn't been translated, the
 ## Support
 
 RSG Discord
+
+Credit : Mack
