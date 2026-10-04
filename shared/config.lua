@@ -97,7 +97,7 @@ Config.MissionPaySplit = {
 
 Config.SupplyItems = {
     { item = 'resource_coal',       label = 'Coal',         icon = 'fire' },
-    { item = 'bucketfull',          label = 'Full Bucket',  icon = 'tint' },
+    { item = 'fullbucket',          label = 'Full Bucket',  icon = 'tint' },
     { item = 'oilcan',              label = 'Can of Oil',   icon = 'wrench' },
 }
 
@@ -113,7 +113,7 @@ Config.Fuel = {
 }
 
 Config.Water = {
-    item = 'bucketfull',
+    item = 'fullbucket',
     itemLabel = 'Full Bucket',
     refillAmount = 50,
     decreaseInterval = 45000,
