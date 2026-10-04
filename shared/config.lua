@@ -96,16 +96,16 @@ Config.MissionPaySplit = {
 }
 
 Config.SupplyItems = {
-    { item = 'coal',       label = 'Coal',        icon = 'fire' },
-    { item = 'fullbucket', label = 'Full Bucket',  icon = 'tint' },
-    { item = 'oilcan',     label = 'Can of Oil',   icon = 'wrench' },
+    { item = 'resource_coal',       label = 'Coal',         icon = 'fire' },
+    { item = 'bucketfull',          label = 'Full Bucket',  icon = 'tint' },
+    { item = 'oilcan',              label = 'Can of Oil',   icon = 'wrench' },
 }
 
 ---------------------------------------------------------------
 -- FUEL / WATER / CONDITION
 ---------------------------------------------------------------
 Config.Fuel = {
-    item = 'coal',
+    item = 'resource_coal',
     itemLabel = 'Coal',
     refuelAmount = 2,
     decreaseInterval = 20000,
@@ -113,7 +113,7 @@ Config.Fuel = {
 }
 
 Config.Water = {
-    item = 'fullbucket',
+    item = 'bucketfull',
     itemLabel = 'Full Bucket',
     refillAmount = 50,
     decreaseInterval = 45000,
@@ -121,8 +121,8 @@ Config.Water = {
 }
 
 Config.Condition = {
-    item = 'oil',
-    itemLabel = 'Oil',
+    item = 'oilcan',
+    itemLabel = 'Oil Can',
     repairAmount = 50,
     decreaseInterval = 60000,
     decreaseAmount = 1,
@@ -171,24 +171,24 @@ Config.Companies = {
 ---------------------------------------------------------------
 Config.Upgrades = {
     speed = {
-        [1] = { label = 'Bronze Speed',      cost = 150,  itemCost = { item = 'iron_bar',  amount = 5 },  bonus = 2  },
-        [2] = { label = 'Silver Speed',      cost = 400,  itemCost = { item = 'steel_bar', amount = 5 }, bonus = 4  },
-        [3] = { label = 'Gold Speed',        cost = 800,  itemCost = { item = 'goldbar',   amount = 3 },  bonus = 6  },
+        [1] = { label = 'Bronze Speed',      cost = 150,  itemCost = { item = 'resource_iron_bar',  amount = 5 },  bonus = 2  },
+        [2] = { label = 'Silver Speed',      cost = 400,  itemCost = { item = 'resource_steel_bar', amount = 5 },  bonus = 4  },
+        [3] = { label = 'Gold Speed',        cost = 800,  itemCost = { item = 'resource_gold_bar',  amount = 3 },  bonus = 6  },
     },
     fuel_cap = {
-        [1] = { label = 'Bronze Fuel',       cost = 100,  itemCost = { item = 'iron_bar',  amount = 3 },  bonus = 25 },
-        [2] = { label = 'Silver Fuel',       cost = 300,  itemCost = { item = 'steel_bar', amount = 3 }, bonus = 50 },
-        [3] = { label = 'Gold Fuel',         cost = 600,  itemCost = { item = 'goldbar',   amount = 2 },  bonus = 75 },
+        [1] = { label = 'Bronze Fuel',       cost = 100,  itemCost = { item = 'resource_iron_bar',  amount = 3 },  bonus = 25 },
+        [2] = { label = 'Silver Fuel',       cost = 300,  itemCost = { item = 'resource_steel_bar', amount = 3 },  bonus = 50 },
+        [3] = { label = 'Gold Fuel',         cost = 600,  itemCost = { item = 'resource_gold_bar',  amount = 2 },  bonus = 75 },
     },
     water_cap = {
-        [1] = { label = 'Bronze Water',      cost = 100,  itemCost = { item = 'iron_bar',  amount = 3 },  bonus = 25 },
-        [2] = { label = 'Silver Water',      cost = 300,  itemCost = { item = 'steel_bar', amount = 3 }, bonus = 50 },
-        [3] = { label = 'Gold Water',        cost = 600,  itemCost = { item = 'goldbar',   amount = 2 },  bonus = 75 },
+        [1] = { label = 'Bronze Water',      cost = 100,  itemCost = { item = 'resource_iron_bar',  amount = 3 },  bonus = 25 },
+        [2] = { label = 'Silver Water',      cost = 300,  itemCost = { item = 'resource_steel_bar', amount = 3 },  bonus = 50 },
+        [3] = { label = 'Gold Water',        cost = 600,  itemCost = { item = 'resource_gold_bar',  amount = 2 },  bonus = 75 },
     },
     durability = {
-        [1] = { label = 'Bronze Durability', cost = 120,  itemCost = { item = 'iron_bar',  amount = 4 },  bonus = 10 },
-        [2] = { label = 'Silver Durability', cost = 350,  itemCost = { item = 'steel_bar', amount = 4 }, bonus = 25 },
-        [3] = { label = 'Gold Durability',   cost = 700,  itemCost = { item = 'goldbar',   amount = 2 },  bonus = 40 },
+        [1] = { label = 'Bronze Durability', cost = 120,  itemCost = { item = 'resource_iron_bar',  amount = 4 },  bonus = 10 },
+        [2] = { label = 'Silver Durability', cost = 350,  itemCost = { item = 'resource_steel_bar', amount = 4 },  bonus = 25 },
+        [3] = { label = 'Gold Durability',   cost = 700,  itemCost = { item = 'resource_gold_bar',  amount = 2 },  bonus = 40 },
     },
 }
 
@@ -509,7 +509,7 @@ Config.Missions = {
         repairTime = 10000,
         jobLegs = 3, -- "Start a Maintenance Job" chains this many closest-stop repairs in a row
         locations = {
-            { coords = vector3(515.0, 650.0, 115.68),  label = 'Heartland Track Section' },
+            { coords = vector3(515.0, 650.0, 115.68),   label = 'Heartland Track Section' },
             { coords = vector3(-318.0, -340.0, 89.84),  label = 'Flatneck Rail Crossing' },
             { coords = vector3(1235.0, -1320.0, 76.44), label = 'Lemoyne Junction' },
             { coords = vector3(-1315.0, 395.0, 95.49),  label = 'Cumberland Pass' },
@@ -522,14 +522,14 @@ Config.Missions = {
 -- DELIVERY DESTINATIONS
 ---------------------------------------------------------------
 Config.DeliveryDestinations = {
-    { coords = vector3(487.61, 666.50, 117.39),    label = 'Heartland Depot',        pay = 20, isWest = false, radius = 25 },
+    { coords = vector3(487.61, 666.50, 117.39),     label = 'Heartland Depot',        pay = 20, isWest = false, radius = 25 },
     { coords = vector3(-3735.41, -2602.66, -12.91), label = 'Armadillo Freight Yard', pay = 30, isWest = true,  radius = 25 },
-    { coords = vector3(1521.84, 428.44, 90.68),    label = 'Emerald Siding',         pay = 18, isWest = false, radius = 25 },
-    { coords = vector3(2719.13, -1439.78, 46.22),  label = 'Saint Denis Yard',       pay = 25, isWest = false, radius = 25 },
-    { coords = vector3(-1312.36, 387.03, 95.40),   label = 'Wallace Depot',          pay = 22, isWest = false, radius = 25 },
-    { coords = vector3(2954.11, 1306.58, 44.49),   label = 'Annesburg Coal Yard',    pay = 28, isWest = false, radius = 25 },
-    { coords = vector3(-1095.93, -574.64, 82.41),  label = 'Riggs Landing',          pay = 20, isWest = false, radius = 25 },
-    { coords = vector3(583.91, 1682.86, 187.80),   label = 'Bacchus Bridge Depot',   pay = 35, isWest = false, radius = 25 },
+    { coords = vector3(1521.84, 428.44, 90.68),     label = 'Emerald Siding',         pay = 18, isWest = false, radius = 25 },
+    { coords = vector3(2719.13, -1439.78, 46.22),   label = 'Saint Denis Yard',       pay = 25, isWest = false, radius = 25 },
+    { coords = vector3(-1312.36, 387.03, 95.40),    label = 'Wallace Depot',          pay = 22, isWest = false, radius = 25 },
+    { coords = vector3(2954.11, 1306.58, 44.49),    label = 'Annesburg Coal Yard',    pay = 28, isWest = false, radius = 25 },
+    { coords = vector3(-1095.93, -574.64, 82.41),   label = 'Riggs Landing',          pay = 20, isWest = false, radius = 25 },
+    { coords = vector3(583.91, 1682.86, 187.80),    label = 'Bacchus Bridge Depot',   pay = 35, isWest = false, radius = 25 },
 }
 
 ---------------------------------------------------------------
