@@ -59,7 +59,7 @@ function UpdateTrainHUDData()
         engine = EngineRunning,
         cruiseForward = IsCruiseForward(),
         cruiseBackward = IsCruiseBackward(),
-        nearestStation = nearestStation and nearestStation.label or 'Unknown',
+        nearestStation = nearestStation and nearestStation.label or locale('unknown'),
         switchState = GetSwitchState(),
         junctionText = juncText,
         missionActive = IsOnMission(),

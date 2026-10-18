@@ -39,19 +39,26 @@ end
 ---------------------------------------------------------------
 -- MODEL LOADING
 ---------------------------------------------------------------
-function LoadModel(model)
+-- Returns true once loaded, false if the model is invalid or times out
+-- (prevents an infinite loop on a bad model name in config).
+function LoadModel(model, timeoutMs)
     if type(model) == 'string' then model = joaat(model) end
+    if not IsModelValid(model) then return false end
     RequestModel(model)
+    local deadline = GetGameTimer() + (timeoutMs or 10000)
     while not HasModelLoaded(model) do
-        Wait(100)
+        if GetGameTimer() > deadline then return false end
+        Wait(50)
     end
+    return true
 end
 
 function LoadTrainCars(trainHash)
     local wagonCount = Citizen.InvokeNative(0x635423D55CA84FC8, trainHash)
     for i = 0, wagonCount - 1 do
         local wagonModel = Citizen.InvokeNative(0x8DF5F6A19F99F0D5, trainHash, i)
-        while not HasModelLoaded(wagonModel) do
+        local deadline = GetGameTimer() + 10000
+        while not HasModelLoaded(wagonModel) and GetGameTimer() < deadline do
             Citizen.InvokeNative(0xFA28FE3A6246FC30, wagonModel, 1)
             Wait(100)
         end

@@ -70,7 +70,7 @@ function SpawnAmbientTram()
     -- Create blip for the tram
     ambientTramBlip = Citizen.InvokeNative(0x23F74C2FDA6E7C61, Config.Blips.train.hash, ambientTram)
     SetBlipScale(ambientTramBlip, Config.Blips.train.scale)
-    Citizen.InvokeNative(0x9CB1A1623062F402, ambientTramBlip, cfg.label or 'Saint Denis Trolley')
+    Citizen.InvokeNative(0x9CB1A1623062F402, ambientTramBlip, cfg.label or locale('menu_saint_denis_trolley'))
 
     DebugPrint('Ambient tram spawned in Saint Denis')
 end

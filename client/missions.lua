@@ -222,7 +222,7 @@ function BeginMaintenanceLeg(loc)
     if missionBlip then RemoveBlip(missionBlip) end
     missionBlip = CreateMissionBlip(loc.coords, loc.label, 25.0, 0xFFFF00FF)
 
-    local legTag = activeMission.totalLegs > 1 and (' (Job ' .. activeMission.leg .. '/' .. activeMission.totalLegs .. ')') or ''
+    local legTag = activeMission.totalLegs > 1 and locale('mission_leg_tag', activeMission.leg, activeMission.totalLegs) or ''
     Notify(locale('maintenance_travel_to', loc.label, legTag), 'success', 10000)
 
     local myLeg = activeMission.leg
