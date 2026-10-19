@@ -49,6 +49,15 @@ Advanced train management system for RedM (rsg-core). Buy railroad companies, hi
 - **Start/Stop Engine** — Toggle engine from outside the train
 - **Send to Yard** — Despawn train, saves state
 
+### 🧳 Train Storage
+- **Per-Train Cargo Hold** — Every deployed train has its own inventory, opened from the **Train Storage** option on the train's ox_target menu
+- **Capacity Scales With the Engine** — A handcart holds 6 slots, a Winter Special holds 32 (fully configurable per model)
+- **Driver Only** — Only the player who deployed the train can open its hold
+- **⚠️ Temporary by Design** — Contents are **destroyed** whenever the train leaves the world: parked, despawned, sent to yard, auto-recalled for distance, on death, mission failure, disconnect, or server restart
+- **Why** — Train stashes are persistent database rows. Without this, a parked train would be unlimited free storage. The stash ID is regenerated on every deploy, so nothing can carry over
+- **Reversing Is Safe** — "Reverse Direction" rebuilds the train entity but keeps your load
+- **Loss Protection** — A warning on first open each trip, a confirmation dialog naming how many stacks will be destroyed before any manual put-away, and a proximity warning before the auto-recall distance
+
 ### 📦 Missions
 - **One-Click Job Requests** — Just click "Start a Delivery Job" or "Start a Maintenance Job", no need to browse or pick a destination
 - **Auto-Routed Job Chains** — Each job strings together multiple stops (3 by default); the script always sends you to the closest unvisited stop for the next leg
@@ -79,13 +88,15 @@ Advanced train management system for RedM (rsg-core). Buy railroad companies, hi
 - Company purchase price, mission pay split, fuel/water/condition rates
 - Train speeds, costs, ranks, upgrade tiers
 - Station locations, delivery destinations, mission types
-- All configurable in a single `config.lua`
+- Per-model train storage capacity
+- All configurable in a single `shared/config.lua`
 
 ---
 
 ## Dependencies
 
 - [rsg-core](https://github.com/Rexshack-RedM/rsg-core)
+- [rsg-inventory](https://github.com/Rexshack-RedM/rsg-inventory) — required for Train Storage
 - [ox_lib](https://github.com/overextended/ox_lib)
 - [ox_target](https://github.com/overextended/ox_target)
 - [oxmysql](https://github.com/overextended/oxmysql)
@@ -116,7 +127,7 @@ If you'd rather import the SQL file yourself (e.g. you don't want the resource's
 
 ## Configuration
 
-All settings are in `config.lua`:
+All settings are in `shared/config.lua`:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -129,6 +140,32 @@ All settings are in `config.lua`:
 | TrainDespawnDist | 250 | Distance before train auto-recalls |
 | Missions.delivery.jobLegs | 3 | Number of stops chained together in a Delivery Job |
 | Missions.maintenance.jobLegs | 3 | Number of stops chained together in a Maintenance Job |
+| TrainStorage.Enabled | true | Master switch for the per-train cargo hold |
+| TrainStorage.DefaultSlots | 20 | Slots for any train model not listed in `Models` |
+| TrainStorage.DefaultMaxWeight | 150000 | Weight limit for unlisted models |
+| TrainStorage.ConfirmOnPutAway | true | Confirm before a manual put-away destroys a loaded hold |
+| TrainStorage.WarnOnFirstOpen | true | Warn once per trip that storage is temporary |
+| TrainStorage.DistanceWarnPercent | 0.7 | Warn at this fraction of `TrainDespawnDist` while carrying cargo |
+
+### Setting storage capacity per train
+
+Capacity lives in `Config.TrainStorage.Models` in `shared/config.lua`, keyed by **train model**:
+
+```lua
+Models = {
+    handcart_config        = { slots = 6,  maxweight = 40000  },
+    engine_config          = { slots = 20, maxweight = 150000 },
+    appleseed_config       = { slots = 24, maxweight = 180000 },
+    winter4_config         = { slots = 32, maxweight = 240000 },
+    -- ...
+},
+```
+
+Any model not listed falls back to `DefaultSlots` / `DefaultMaxWeight`.
+
+**Note:** these are keyed by *model*, not by the train's display name. Several company trains share one model — `appleseed_config` backs "Appleseed Freight", "Heartland Hauler", "Cumberland Freight" and "Frontier Hauler" — so changing it affects all of them.
+
+`maxweight` uses the same scale as rsg-inventory (1000 = 1kg), so `150000` is roughly 150kg.
 
 ---
 
@@ -148,6 +185,12 @@ All settings are in `config.lua`:
 3. Once approved: access Company Trains, Supplies, and Missions
 4. Complete missions to earn money and XP
 5. Rank up to unlock better trains
+
+### Using Train Storage
+1. Deploy a train from the "Company Trains" tab
+2. Walk up to it and use your ox_target key (4m range)
+3. Choose **Train Storage**
+4. **Empty it before you finish.** Contents are destroyed when the train is stored, recalled, or you disconnect — it is a cargo hold for the trip, not a bank
 
 ---
 
@@ -181,5 +224,3 @@ If the selected language's file is missing, or a key hasn't been translated, the
 ## Support
 
 RSG Discord
-
-Credit : Mack

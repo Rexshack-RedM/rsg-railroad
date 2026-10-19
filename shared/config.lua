@@ -599,9 +599,9 @@ Config.CargoDelivery = {
     -- Small per-barrel offsets (relative to PlatformSpawnCoords) so multiple loose
     -- barrels don't spawn stacked on top of each other.
     PlatformBarrelOffsets = {
-        { x = 0.0, y = 0.0, z = -0.2 },
-        { x = 0.8, y = 0.0, z = -0.2 },
-        { x = 1.6, y = 0.0, z = -0.2 },
+        { x = 0.0, y = 0.0, z = -1.0 },
+        { x = 0.8, y = 0.0, z = -1.0 },
+        { x = 1.6, y = 0.0, z = -1.0 },
     },
 
     -- PLACEHOLDER: offsets relative to the resolved flatbed carriage entity's own root (bone 0),
@@ -631,6 +631,62 @@ Config.CargoDelivery = {
     -- Only one barrel can be unloaded per drop-off: after a delivery, the train
     -- must move at least this far from that spot before "Unload Cargo" appears again.
     MinMoveDistance       = 15.0,
+}
+
+---------------------------------------------------------------
+-- TRAIN STORAGE (per-deployment cargo hold)
+--
+-- Each DEPLOYED train gets its own rsg-inventory stash, opened from an
+-- ox_target option on the train itself.
+--
+-- IMPORTANT -- STRICT WIPE POLICY:
+-- The stash is destroyed whenever the train leaves the world, by ANY
+-- route: parked, despawned, sent to yard, auto-despawned for being too
+-- far away, player death, mission failure, disconnect, or server restart.
+-- A new empty stash is created on every fresh deploy.
+--
+-- This is deliberate. rsg-inventory stashes are persistent rows in the
+-- `inventories` table, so without this a parked train would become
+-- unlimited free storage. The stash identifier is regenerated per
+-- deployment, which means any leftover data is permanently unreachable.
+--
+-- The one exception is 'Reverse Direction', which internally destroys and
+-- recreates the train entity. That is NOT treated as a put-away and the
+-- load is preserved.
+--
+-- Only the player who deployed the train can open its storage.
+---------------------------------------------------------------
+Config.TrainStorage = {
+    Enabled          = true,
+
+    -- Used for any train model not listed in Models below.
+    DefaultSlots     = 20,
+    DefaultMaxWeight = 150000,
+
+    -- Per-model capacity: bigger engines haul more.
+    Models = {
+        handcart_config        = { slots = 6,  maxweight = 40000  },
+        trolley_config         = { slots = 8,  maxweight = 50000  },
+        engine_config          = { slots = 20, maxweight = 150000 },
+        appleseed_config       = { slots = 24, maxweight = 180000 },
+        gunslinger3_config     = { slots = 22, maxweight = 165000 },
+        gunslinger4_config     = { slots = 26, maxweight = 195000 },
+        bountyhunter_config    = { slots = 24, maxweight = 180000 },
+        prisoner_escort_config = { slots = 28, maxweight = 210000 },
+        winter4_config         = { slots = 32, maxweight = 240000 },
+    },
+
+    -- Warn the player once per deployment, the first time they open storage.
+    WarnOnFirstOpen = true,
+
+    -- Ask for confirmation before a manual park / despawn / send-to-yard
+    -- that would destroy a non-empty stash. Never blocks the action.
+    ConfirmOnPutAway = true,
+
+    -- Warn once the player gets this far toward Config.TrainDespawnDist while
+    -- carrying cargo, since the auto-despawn is the most common cause of loss.
+    DistanceWarnPercent  = 0.7,
+    DistanceWarnInterval = 15000, -- ms between repeat warnings
 }
 
 ---------------------------------------------------------------
