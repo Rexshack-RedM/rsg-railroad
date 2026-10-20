@@ -233,7 +233,7 @@ end)
 
 function FindNearestName(coords)
     local nearestDist = math.huge
-    local nearestName = 'Unknown'
+    local nearestName = locale('unknown')
     for _, stop in ipairs(Config.RouteOneTrainStops) do
         local dist = #(stop.coords - coords)
         if dist < nearestDist then
@@ -256,7 +256,7 @@ function FindNearestName(coords)
         end
     end
     if nearestDist > 200 then
-        nearestName = 'En Route'
+        nearestName = locale('hud_en_route')
     end
     return nearestName
 end
@@ -266,7 +266,7 @@ RegisterCommand('trainpos', function()
 
     if ActiveTrain and DoesEntityExist(ActiveTrain) then
         local coords = GetEntityCoords(ActiveTrain)
-        local label = ActiveTrainConfig and ActiveTrainConfig.label or 'Active Train'
+        local label = ActiveTrainConfig and ActiveTrainConfig.label or locale('hud_active_train')
         table.insert(options, { title = label, description = FindNearestName(coords), icon = 'train' })
     end
 

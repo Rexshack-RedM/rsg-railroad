@@ -21,7 +21,7 @@
                 </div>
                 <button class="icon-btn" id="closeStationBtn" title="Close">&#10005;</button>
             </div>
-            <div class="ink-divider">?</div>
+            <div class="ink-divider">&#10022;</div>
             <div id="stationTabs" class="tab-bar"></div>
             <div class="station-layout">
                 <div class="col list-col">
@@ -45,7 +45,7 @@
                     <span class="panel-subtitle" id="hudCompanyLabel"></span>
                 </div>
             </div>
-            <div class="ink-divider">?</div>
+            <div class="ink-divider">&#10022;</div>
             <div class="hud-gauges">
                 <div class="gauge-row">
                     <span class="gauge-label" id="hudSpeedLabel">SPD</span>
@@ -86,6 +86,19 @@
                 <div class="keybind-row"><span class="key-badge">R</span><span id="hudKbCruise">Cruise</span></div>
                 <div class="keybind-row"><span class="key-badge">]</span><span id="hudKbSwitch">Switch</span></div>
                 <div class="keybind-row"><span class="key-badge">G</span><span id="hudKbWhistle">Whistle</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div id="confirmModal" class="modal-root hidden">
+        <div class="modal-card">
+            <h2 class="modal-title" id="confirmTitle">Are you sure?</h2>
+            <div class="ink-divider modal-divider"></div>
+            <p class="modal-body" id="confirmBody"></p>
+            <div class="modal-actions">
+                <button class="wood-btn muted" id="confirmCancel">Cancel</button>
+                <button class="wood-btn danger" id="confirmOk">Confirm</button>
             </div>
         </div>
     </div>

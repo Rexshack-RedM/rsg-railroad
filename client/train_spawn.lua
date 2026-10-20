@@ -497,7 +497,7 @@ function SetupTrainTarget()
                     canCancel = true,
                     disable = { move = true, combat = true }
                 }) then
-                    TriggerServerEvent('rsg-railroad:useMaintenanceItem', Config.Fuel.item, 1, 'fuel', ActiveTrainData.id)
+                    TriggerServerEvent('rsg-railroad:useMaintenanceItem', 'fuel', ActiveTrainData and ActiveTrainData.id or 0)
                 end
 
                 -- Cleanup
@@ -613,7 +613,7 @@ function SetupTrainTarget()
                 FreezeEntityPosition(ped, true)
                 TaskStartScenarioInPlace(ped, joaat('WORLD_HUMAN_BUCKET_POUR_LOW'), 0, true, false, false, false)
                 if lib.progressBar({ duration = 4000, label = locale('progress_emergency_water'), useWhileDead = false, canCancel = true, disable = { move = true, combat = true } }) then
-                    TriggerServerEvent('rsg-railroad:useMaintenanceItem', Config.Water.item, 1, 'water', ActiveTrainData.id)
+                    TriggerServerEvent('rsg-railroad:useMaintenanceItem', 'water', ActiveTrainData and ActiveTrainData.id or 0)
                 end
                 ClearPedTasks(ped)
                 SetCurrentPedWeapon(ped, `WEAPON_UNARMED`, true)
@@ -638,7 +638,7 @@ function SetupTrainTarget()
                 FreezeEntityPosition(ped, true)
                 TaskStartScenarioInPlace(ped, joaat('WORLD_HUMAN_CROUCH_INSPECT'), 0, true, false, false, false)
                 if lib.progressBar({ duration = 4000, label = locale('progress_emergency_repair'), useWhileDead = false, canCancel = true, disable = { move = true, combat = true } }) then
-                    TriggerServerEvent('rsg-railroad:useMaintenanceItem', Config.Condition.item, 1, 'condition', ActiveTrainData.id)
+                    TriggerServerEvent('rsg-railroad:useMaintenanceItem', 'condition', ActiveTrainData and ActiveTrainData.id or 0)
                 end
                 ClearPedTasks(ped)
                 FreezeEntityPosition(ped, false)
@@ -816,21 +816,6 @@ function GetBarDisplay(pct)
     local empty = 10 - filled
     return string.rep('█', filled) .. string.rep('░', empty)
 end
-
----------------------------------------------------------------
--- SERVER FUEL/WATER/CONDITION SYNC
----------------------------------------------------------------
-RegisterNetEvent('rsg-railroad:syncFuel', function(fuel)
-    TrainFuel = fuel
-end)
-
-RegisterNetEvent('rsg-railroad:syncWater', function(water)
-    TrainWater = water
-end)
-
-RegisterNetEvent('rsg-railroad:syncCondition', function(condition)
-    TrainCondition = condition
-end)
 
 ---------------------------------------------------------------
 -- MAINTENANCE RESULT (server removed item, apply locally)

@@ -76,6 +76,19 @@ function woodBtn(label, onClick, variant) {
     return b;
 }
 
+// Themed confirm dialog for destructive actions.
+function confirmAction(title, body, onConfirm) {
+    const modal = document.getElementById('confirmModal');
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmBody').textContent = body;
+    document.getElementById('confirmCancel').textContent = t('nui_cancel', 'Cancel');
+    document.getElementById('confirmOk').textContent = t('nui_confirm', 'Confirm');
+    const close = () => modal.classList.add('hidden');
+    document.getElementById('confirmCancel').onclick = close;
+    document.getElementById('confirmOk').onclick = () => { close(); onConfirm(); };
+    modal.classList.remove('hidden');
+}
+
 function field(label, input) {
     const f = el('div', 'field');
     f.appendChild(el('label', 'field-label', label));
@@ -100,6 +113,7 @@ function closeStation() {
     if (isClosing) return;
     isClosing = true;
     document.getElementById('stationUI').classList.add('hidden');
+    document.getElementById('confirmModal').classList.add('hidden');
     if (!closedByLua) {
         nuiFetch('closeStation').catch(() => {});
     }
@@ -239,7 +253,11 @@ function renderDashboard(content, details) {
     }));
 
     // Sell
-    details.appendChild(woodBtn(t('nui_sell_company', 'Sell Company'), () => { nuiFetch('sellCompany', { companyId: stationData.station.company }).catch(() => {}); closeStation(); }, 'danger'));
+    details.appendChild(woodBtn(t('nui_sell_company', 'Sell Company'), () => confirmAction(
+        t('nui_sell_company', 'Sell Company'),
+        t('nui_confirm_sell_company', 'Sell this company? All drivers and supplies are removed. This cannot be undone.'),
+        () => { nuiFetch('sellCompany', { companyId: stationData.station.company }).catch(() => {}); closeStation(); }
+    ), 'danger'));
 }
 
 // ========== MANAGE DRIVERS (owner) ==========
@@ -287,7 +305,11 @@ function renderDrivers(content, details) {
                     details.appendChild(statLine(t('nui_company_xp', 'Company XP'), emp.company_xp));
                     details.appendChild(statLine(t('nui_company_missions', 'Company Missions'), emp.company_missions));
                     details.appendChild(statLine(t('nui_earnings', 'Earnings'), '$' + Math.floor(emp.total_earnings), 'gold'));
-                    details.appendChild(woodBtn(t('nui_fire_driver', 'Fire Driver'), () => { nuiFetch('fireDriver', { companyId: stationData.station.company, employeeId: emp.id }).then(r => { if (r) { stationData.employees = r.employees; renderContent(); } }).catch(() => {}); }, 'danger'));
+                    details.appendChild(woodBtn(t('nui_fire_driver', 'Fire Driver'), () => confirmAction(
+                        t('nui_fire_driver', 'Fire Driver'),
+                        t('nui_confirm_fire_driver', 'Fire this driver? They will lose access to company trains and supplies.'),
+                        () => nuiFetch('fireDriver', { companyId: stationData.station.company, employeeId: emp.id }).then(r => { if (r) { stationData.employees = r.employees; renderContent(); } }).catch(() => {})
+                    ), 'danger'));
                 },
             });
             content.appendChild(card);
@@ -331,6 +353,11 @@ function renderTrains(content, details) {
                 details.appendChild(statLine(t('hud_condition', 'Condition'), tc.maxCondition));
                 details.appendChild(statLine(t('nui_required_rank', 'Required Rank'), rankLabel));
                 details.appendChild(statLine(t('nui_upgradeable', 'Upgradeable'), tc.upgradeable ? t('yes', 'Yes') : t('no', 'No')));
+
+                // Preview is available regardless of rank - it's only looking.
+                const pvActions = el('div', 'detail-actions');
+                pvActions.appendChild(woodBtn(t('nui_preview_train', '\u{1F50D} Preview Train'), () => nuiFetch('previewTrain', { trainIndex: tc.index })));
+                details.appendChild(pvActions);
 
                 if (!canUse) {
                     details.appendChild(el('p', 'hint warn', t('nui_need_rank_prefix', 'You need ') + rankLabel + t('nui_need_rank_suffix', ' rank to use this train.')));
@@ -539,6 +566,12 @@ function applyStaticLocale() {
     };
     setTitle('stationBackBtn', 'nui_dismiss_title', 'Dismiss');
     setTitle('closeStationBtn', 'nui_close_title', 'Close');
+    setText('stationName', 'nui_train_station', 'Train Station');
+    setText('hudTrainLabel', 'nui_train', 'Train');
+    setText('hudMission', 'nui_none', 'None');
+    setText('confirmTitle', 'nui_confirm_title', 'Are you sure?');
+    setText('confirmCancel', 'nui_cancel', 'Cancel');
+    setText('confirmOk', 'nui_confirm', 'Confirm');
     setText('stationListTitle', 'nui_options', 'Options');
     setText('stationDetailTitle', 'nui_details', 'Details');
     setText('hudSpeedLabel', 'nui_hud_speed_short', 'SPD');
@@ -692,5 +725,10 @@ window.addEventListener('message', (event) => {
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('closeStationBtn').addEventListener('click', closeStation);
     document.getElementById('stationBackBtn').addEventListener('click', closeStation);
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeStation(); });
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const modal = document.getElementById('confirmModal');
+        if (!modal.classList.contains('hidden')) { modal.classList.add('hidden'); return; }
+        closeStation();
+    });
 });

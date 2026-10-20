@@ -56,7 +56,7 @@ RegisterNetEvent('rsg-railroad:purchaseUpgrade', function(companyId, trainModel,
     if not trainConfig then return end
 
     if not trainConfig.upgradeable then
-        TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('upgrade_not_upgradeable'), type = 'error', duration = 5000 })
+        NotifyPlayer(src, locale('upgrade_not_upgradeable'), 'error')
         return
     end
 
@@ -70,8 +70,8 @@ RegisterNetEvent('rsg-railroad:purchaseUpgrade', function(companyId, trainModel,
     local currentLevel = current and (current[column] or 0) or 0
     local nextLevel = currentLevel + 1
 
-    if nextLevel > 3 then
-        TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('upgrade_max'), type = 'error', duration = 5000 })
+    if nextLevel > #upgradeTiers then
+        NotifyPlayer(src, locale('upgrade_max'), 'error')
         return
     end
 
@@ -80,33 +80,34 @@ RegisterNetEvent('rsg-railroad:purchaseUpgrade', function(companyId, trainModel,
 
     -- No per-tier rank gate — access is controlled by the owner/engineer check above.
 
-    -- Check money
-    local cash = Player.PlayerData.money['cash'] or 0
-    if cash < upgradeData.cost then
-        TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('not_enough_money'), type = 'error', duration = 5000 })
+    -- Check money + items before taking anything
+    if (Player.PlayerData.money['cash'] or 0) < upgradeData.cost then
+        NotifyPlayer(src, locale('not_enough_money'), 'error')
         return
     end
 
-    -- Check item cost
-    if upgradeData.itemCost then
-        local item = Player.Functions.GetItemByName(upgradeData.itemCost.item)
-        if not item or item.amount < upgradeData.itemCost.amount then
-            TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('upgrade_cost', upgradeData.cost, upgradeData.itemCost.amount, upgradeData.itemCost.item), type = 'error', duration = 5000 })
-            return
-        end
-        Player.Functions.RemoveItem(upgradeData.itemCost.item, upgradeData.itemCost.amount)
-        TriggerClientEvent('inventory:client:ItemBox', src, RSGCore.Shared.Items[upgradeData.itemCost.item], 'remove')
+    local itemCost = upgradeData.itemCost
+    if itemCost and (exports['rsg-inventory']:GetItemCount(src, itemCost.item) or 0) < itemCost.amount then
+        NotifyPlayer(src, locale('upgrade_cost', upgradeData.cost, itemCost.amount, itemCost.item), 'error')
+        return
     end
 
-    -- Save and notify
-    Player.Functions.RemoveMoney('cash', upgradeData.cost)
+    if not Player.Functions.RemoveMoney('cash', upgradeData.cost, 'railroad-upgrade') then
+        NotifyPlayer(src, locale('not_enough_money'), 'error')
+        return
+    end
+    if itemCost and not exports['rsg-inventory']:RemoveItem(src, itemCost.item, itemCost.amount, nil, 'railroad-upgrade') then
+        Player.Functions.AddMoney('cash', upgradeData.cost, 'railroad-upgrade-refund')
+        NotifyPlayer(src, locale('upgrade_cost', upgradeData.cost, itemCost.amount, itemCost.item), 'error')
+        return
+    end
+
     DB.UpsertCompanyUpgrade(companyId, trainModel, column, nextLevel)
-    TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('upgrade_purchased', upgradeData.label), type = 'success', duration = 5000 })
-    print('[rsg-railroad] Company upgrade: ' .. companyId .. ' / ' .. trainModel .. ' / ' .. upgradeType .. ' -> Lvl ' .. nextLevel)
+    NotifyPlayer(src, locale('upgrade_purchased', upgradeData.label), 'success')
 
     Webhook.SendFields('economy', 'Upgrade Purchased', {
         { 'Player', GetPlayerFullName(Player) .. ' (' .. citizenid .. ')' },
-        { 'Company', Config.Companies[companyId] and Config.Companies[companyId].label or companyId },
+        { 'Company', CompanyLabel(companyId) },
         { 'Train Model', trainModel },
         { 'Upgrade', upgradeData.label },
         { 'New Level', nextLevel },

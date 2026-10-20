@@ -1,82 +1,54 @@
-
-
 local RSGCore = exports['rsg-core']:GetCoreObject()
 
+---------------------------------------------------------------
+-- TRAIN TICKETS
+-- Called once when a player boards a train they are not driving.
+-- The ticket is consumed on boarding (or bought at the markup price if
+-- the player has none), so one ticket = one journey and the company
+-- register can't be farmed by re-triggering the check.
+---------------------------------------------------------------
+local TICKET_CHECK_COOLDOWN = 10 -- seconds
+local lastCheck = {}             -- [source] = { time = os.time(), result = string }
 
-RSGCore.Functions.CreateCallback('rsg-traintickets:server:useTicket', function(source, cb, companyId)
-    local src = source
-    local Player = RSGCore.Functions.GetPlayer(src)
-
-    if not Player then
-        cb('no_ticket')
-        return
-    end
+local function CheckTicket(src, Player, companyId)
+    local ownership = companyId and Config.Companies[companyId] and DB.GetCompanyOwnership(companyId) or nil
 
     -- Company owners ride for free
-    if companyId then
-        local ownership = DB.GetCompanyOwnership(companyId)
-        if ownership and ownership.owner_citizenid == Player.PlayerData.citizenid then
-            cb('has_ticket')
-            return
-        end
+    if ownership and ownership.owner_citizenid == Player.PlayerData.citizenid then
+        return 'has_ticket'
     end
 
-   
-    local ticket = Player.Functions.GetItemByName(Config.TicketItem)
-
-    if ticket and ticket.amount and ticket.amount > 0 then
-       
-        if companyId then
-            DB.AddToCashRegister(companyId, Config.TicketPrice)
-        end
-
-        cb('has_ticket')
-    else
-        
-        local cash = Player.PlayerData.money['cash'] or 0
-
-        if cash >= Config.MarkupPrice then
-           
-            Player.Functions.RemoveMoney('cash', Config.MarkupPrice, 'train-ticket')
-            Player.Functions.AddItem(Config.TicketItem, 1)
-            TriggerClientEvent('inventory:client:ItemBox', src, RSGCore.Shared.Items[Config.TicketItem], 'add', 1)
-
-            if companyId then
-                DB.AddToCashRegister(companyId, Config.MarkupPrice)
-            end
-           
-            cb('bought_ticket')
-        else
-            
-           
-            cb('no_ticket')
-        end
+    if exports['rsg-inventory']:RemoveItem(src, Config.TicketItem, 1, nil, 'railroad-ticket-used') then
+        if ownership then DB.AddToCashRegister(companyId, Config.TicketPrice) end
+        return 'has_ticket'
     end
-end)
 
+    if Player.Functions.RemoveMoney('cash', Config.MarkupPrice, 'railroad-ticket-onboard') then
+        if ownership then DB.AddToCashRegister(companyId, Config.MarkupPrice) end
+        return 'bought_ticket'
+    end
 
-RegisterNetEvent('rsg-traintickets:server:removeTicket', function()
+    return 'no_ticket'
+end
+
+lib.callback.register('rsg-railroad:server:useTicket', function(source, companyId)
     local src = source
     local Player = RSGCore.Functions.GetPlayer(src)
+    if not Player then return 'no_ticket' end
 
-    if not Player then return end
-
-    local ticket = Player.Functions.GetItemByName(Config.TicketItem)
-
-    if ticket and ticket.amount and ticket.amount > 0 then
-        Player.Functions.RemoveItem(Config.TicketItem, 1)
-        TriggerClientEvent('inventory:client:ItemBox', src, RSGCore.Shared.Items[Config.TicketItem], 'remove', 1)
-        TriggerClientEvent('rsg-traintickets:client:ticketRemoved', src)
-        
+    -- Repeat calls inside the cooldown get the previous answer instead of
+    -- charging again (or riding free).
+    local now = os.time()
+    local last = lastCheck[src]
+    if last and (now - last.time) < TICKET_CHECK_COOLDOWN then
+        return last.result == 'no_ticket' and 'no_ticket' or 'has_ticket'
     end
+
+    local result = CheckTicket(src, Player, companyId)
+    lastCheck[src] = { time = now, result = result }
+    return result
 end)
 
-
-
-
-
-AddEventHandler('onResourceStart', function(resourceName)
-    if GetCurrentResourceName() ~= resourceName then return end
-    
+AddEventHandler('playerDropped', function()
+    lastCheck[source] = nil
 end)
-

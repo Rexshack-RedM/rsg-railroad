@@ -153,10 +153,7 @@ local function HandleStationArrival(station)
     -- Pay for everyone who completed this leg
     local paying = onBoard  -- count before disembarkation
     if paying > 0 then
-        PayTicketRevenue(paying)
-        local revenue = math.floor(paying * Config.PassengerSystem.TicketPrice
-            * (1 - Config.PassengerSystem.CompanyShare))
-        Notify(locale('passengers_ticket_pay', revenue, paying), 'success', 7000)
+        PayTicketRevenue(paying) -- server validates and sends the payout notification
     end
 
     if #boardedPassengers > 0 then

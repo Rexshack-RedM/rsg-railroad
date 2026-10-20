@@ -1,148 +1,81 @@
+---------------------------------------------------------------
+-- TRAIN TICKETS (passenger side)
+-- When the player boards a train they are NOT driving, the server
+-- consumes a ticket (or charges the on-board markup). No ticket and no
+-- cash = kicked off. Drivers of their own spawned train are never charged.
+---------------------------------------------------------------
+local onTrain = false
+local ticketed = false -- true once this ride was paid for
 
-
-local RSGCore = nil
-local isOnTrain = false
-local ticketChecked = false
-
-
-CreateThread(function()
-    while RSGCore == nil do
-        RSGCore = exports['rsg-core']:GetCoreObject()
-        Wait(100)
-    end
-    
-end)
-
-
-CreateThread(function()
-    while RSGCore == nil do
-        Wait(100)
-    end
-
-    
-
-    while true do
-        local sleep = 500
-        local ped = PlayerPedId()
-        local onTrain = IsPedInAnyTrain(ped)
-
-        if onTrain == 1 or onTrain == true then
-            if not ticketChecked then
-                
-                ticketChecked = true
-                isOnTrain = true
-                CheckTicket()
-            end
-        else
-            if isOnTrain then
-               
-                TriggerServerEvent('rsg-traintickets:server:removeTicket')
-                ResetState()
-            end
-        end
-
-        Wait(sleep)
-    end
-end)
-
-
-function GetNearestStationCompany()
-    local ped = PlayerPedId()
-    local train = GetVehiclePedIsIn(ped)
-
-    -- If on a company-owned train, use that company
-    if train and DoesEntityExist(train) and ActiveTrain and train == ActiveTrain and ActiveTrainConfig then
+local function GetTicketCompany(train)
+    if train ~= 0 and ActiveTrain and train == ActiveTrain and ActiveTrainConfig then
         return ActiveTrainConfig.company
     end
 
-    -- Otherwise fall back to nearest station
-    local pcoords = GetEntityCoords(ped)
-    local nearestDist = math.huge
-    local nearestCompany = nil
+    local pcoords = GetEntityCoords(cache.ped)
+    local nearestDist, nearestCompany = math.huge, nil
     for _, station in ipairs(Config.Stations) do
-        local dist = GetDistanceBetween(pcoords, station.coords)
+        local dist = #(pcoords - station.coords)
         if dist < nearestDist then
-            nearestDist = dist
-            nearestCompany = station.company
+            nearestDist, nearestCompany = dist, station.company
         end
     end
     return nearestCompany
 end
 
-function CheckTicket()
-    local companyId = GetNearestStationCompany()
-
-    RSGCore.Functions.TriggerCallback('rsg-traintickets:server:useTicket', function(result)
-       
-
-        if result == 'has_ticket' then
-            lib.notify({
-                title = locale('ticket_valid_title'),
-                description = locale('ticket_valid_desc'),
-                type = 'success',
-                position = 'top-right',
-                duration = 5000,
-            })
-
-        elseif result == 'bought_ticket' then
-            lib.notify({
-                title = locale('ticket_purchased_title'),
-                description = locale('ticket_purchased_desc', string.format('%.2f', Config.MarkupPrice), string.format('%.2f', Config.TicketPrice)),
-                type = 'warning',
-                position = 'top-right',
-                duration = 7000,
-            })
-
-        elseif result == 'no_ticket' then
-            lib.notify({
-                title = locale('no_ticket_title'),
-                description = locale('no_ticket_desc', string.format('%.2f', Config.MarkupPrice)),
-                type = 'error',
-                position = 'top-right',
-                duration = 5000,
-            })
-
-            KickOffTrain()
-        end
-    end, companyId)
-end
-
-
-function KickOffTrain()
-    CreateThread(function()
-        Wait(2000)
-
-        local ped = PlayerPedId()
+local function KickOffTrain()
+    SetTimeout(2000, function()
+        local ped = cache.ped
         local coords = GetEntityCoords(ped)
-
         ClearPedTasksImmediately(ped)
         SetEntityCoords(ped, coords.x + 10.0, coords.y + 10.0, coords.z, false, false, false, false)
         Wait(500)
         PlaceEntityOnGroundProperly(ped)
-
-        ResetState()
     end)
 end
 
+local function CheckTicket(train)
+    local result = lib.callback.await('rsg-railroad:server:useTicket', false, GetTicketCompany(train))
 
-RegisterNetEvent('rsg-traintickets:client:ticketRemoved', function()
-    lib.notify({
-        title = locale('journey_complete_title'),
-        description = locale('journey_complete_desc'),
-        type = 'success',
-        position = 'top-right',
-        duration = 5000,
-    })
-end)
-
-function ResetState()
-    isOnTrain = false
-    ticketChecked = false
+    ticketed = result == 'has_ticket' or result == 'bought_ticket'
+    if result == 'has_ticket' then
+        lib.notify({ title = locale('ticket_valid_title'), description = locale('ticket_valid_desc'), type = 'success', position = 'top-right', duration = 5000 })
+    elseif result == 'bought_ticket' then
+        lib.notify({
+            title = locale('ticket_purchased_title'),
+            description = locale('ticket_purchased_desc', string.format('%.2f', Config.MarkupPrice), string.format('%.2f', Config.TicketPrice)),
+            type = 'warning', position = 'top-right', duration = 7000,
+        })
+    else
+        lib.notify({
+            title = locale('no_ticket_title'),
+            description = locale('no_ticket_desc', string.format('%.2f', Config.MarkupPrice)),
+            type = 'error', position = 'top-right', duration = 5000,
+        })
+        KickOffTrain()
+    end
 end
 
+CreateThread(function()
+    while true do
+        local ped = cache.ped
+        local inTrain = IsPedInAnyTrain(ped)
 
-AddEventHandler('onResourceStop', function(resourceName)
-    if GetCurrentResourceName() ~= resourceName then return end
-    ResetState()
+        if inTrain and not onTrain then
+            onTrain = true
+            local train = GetVehiclePedIsIn(ped, false)
+            -- Driving your own train (or riding it as its spawner) is free
+            if not (ActiveTrain and train == ActiveTrain) then
+                CheckTicket(train)
+            end
+        elseif not inTrain and onTrain then
+            onTrain = false
+            if ticketed then
+                ticketed = false
+                lib.notify({ title = locale('journey_complete_title'), description = locale('journey_complete_desc'), type = 'success', position = 'top-right', duration = 5000 })
+            end
+        end
+
+        Wait(1000)
+    end
 end)
-

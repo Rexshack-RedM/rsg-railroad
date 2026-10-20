@@ -25,124 +25,91 @@ end
 
 ----------------------------------------------------------------
 -- COMPLETE MISSION
+-- The client only says "I finished a leg at <label>". Pay is derived from
+-- config and the player's server-side position must be at that location
+-- while they have a train out.
 ----------------------------------------------------------------
+local ARRIVAL_TOLERANCE = 60.0 -- extra metres on top of the location radius
+
+local function FindMaintenanceLocation(label)
+    for _, loc in ipairs(Config.Missions.maintenance.locations) do
+        if loc.label == label then return loc end
+    end
+    return nil
+end
+
+local function IsPlayerNear(src, coords, radius)
+    local pcoords = GetPlayerCoordsServer(src)
+    return pcoords and #(pcoords - coords) <= radius
+end
+
 RegisterNetEvent('rsg-railroad:completeMission', function(missionType, destination, cargo, companyId)
     local src = source
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return end
 
-    -- Anti-spam: also blocks the "just fire the event directly" exploit
-    -- from paying out on every call.
     local now = GetGameTimer()
     if lastMissionAt[src] and (now - lastMissionAt[src]) < MISSION_COOLDOWN_MS then return end
-
-    if missionType ~= 'delivery' and missionType ~= 'npc_transport' and missionType ~= 'maintenance' then return end
+    if type(destination) ~= 'table' or type(destination.label) ~= 'string' then return end
+    if not HasActiveTrain(src) then return end
 
     local citizenid = Player.PlayerData.citizenid
-    local pay = 0
-    local xp = 0
+    local role, ownership, employee = GetCompanyRole(companyId, citizenid)
+    if not role then return end
 
-    -- Fallback: derive company from owned trains if not provided
-    if not companyId then
-        local trains = DB.GetOwnedTrains(citizenid)
-        if trains and #trains > 0 then
-            companyId = trains[1].company_id
-        end
-    end
-    if not companyId or not Config.Companies[companyId] then return end
-
-    -- The player must actually be tied to this company (owner or
-    -- approved employee) so mission pay can't be routed into a company
-    -- they have nothing to do with.
-    local ownership = DB.GetCompanyOwnership(companyId)
-    local isOwner = ownership and ownership.owner_citizenid == citizenid
-    local isDriver = false
-    if not isOwner then
-        local employee = DB.GetEmployeeByIds(companyId, citizenid)
-        isDriver = employee ~= nil and employee.status == 'approved'
-    end
-    if not isOwner and not isDriver then return end
-
+    local pay, xp
     if missionType == 'delivery' then
-        -- Re-derive pay/xp from Config using only the destination LABEL and
-        -- cargo LABEL sent by the client. This stops a forged destination
-        -- or cargo table (e.g. {pay = 999999}) from being trusted directly.
         local cfg = Config.Missions.delivery
-        local destCfg = destination and FindDeliveryDestination(destination.label)
-        local cargoCfg = cargo and FindCargoType(cargo.label)
-        if not destCfg then return end
-
+        local destCfg = FindDeliveryDestination(destination.label)
+        if not destCfg or not IsPlayerNear(src, destCfg.coords, (destCfg.radius or 25.0) + ARRIVAL_TOLERANCE) then return end
+        local cargoCfg = type(cargo) == 'table' and FindCargoType(cargo.label) or nil
         pay = cfg.basePay + destCfg.pay
-        if cargoCfg then
-            pay = math.floor(pay * cargoCfg.weight)
-        end
+        if cargoCfg then pay = math.floor(pay * cargoCfg.weight) end
         xp = cfg.xpReward
-
-    elseif missionType == 'npc_transport' then
-        local cfg = Config.Missions.npc_transport
-        if not cfg then return end
-        local destCfg = destination and FindDeliveryDestination(destination.label)
-        pay = cfg.basePay + (destCfg and destCfg.pay or 0)
-        xp = cfg.xpReward
-
     elseif missionType == 'maintenance' then
         local cfg = Config.Missions.maintenance
+        local loc = FindMaintenanceLocation(destination.label)
+        if not loc or not IsPlayerNear(src, loc.coords, 10.0 + ARRIVAL_TOLERANCE) then return end
         pay = cfg.basePay
         xp = cfg.xpReward
+    else
+        return
     end
 
     lastMissionAt[src] = now
 
-    -- ALL money goes to company cash register
-    if ownership then
-        DB.AddToCashRegister(companyId, pay)
-    end
+    -- All mission money goes to the company cash register
+    DB.AddToCashRegister(companyId, pay)
 
     if Config.Webhooks.LogMissionCompletions then
         Webhook.SendFields('economy', 'Mission Completed', {
             { 'Player', GetPlayerFullName(Player) .. ' (' .. citizenid .. ')' },
-            { 'Company', Config.Companies[companyId] and Config.Companies[companyId].label or companyId },
+            { 'Company', CompanyLabel(companyId) },
             { 'Type', missionType },
             { 'Pay', '$' .. pay },
             { 'XP', xp },
         }, 'success')
     end
 
-    -- Track XP (handles rank-up + notification) and missions
-    AddCompanyXP(src, citizenid, companyId, xp)
-    local membership = DB.GetCompanyMembership(citizenid, companyId)
-    if membership then
-        DB.IncrementMissions(citizenid, companyId)
-        DB.AddEarnings(citizenid, companyId, pay)
+    AddCompanyXP(src, citizenid, companyId, xp) -- handles membership, rank-up + reward
+    DB.IncrementMissions(citizenid, companyId)
+    DB.AddEarnings(citizenid, companyId, pay)
+
+    if employee then
+        DB.IncrementEmployeeMissions(employee.id)
+        DB.AddEmployeeEarnings(employee.id, pay)
     end
 
-    -- Determine employee record for employee-specific tracking
-    if not isOwner then
-        local employee = DB.GetEmployeeByIds(companyId, citizenid)
-        if employee then
-            DB.IncrementEmployeeMissions(employee.id)
-            DB.AddEmployeeEarnings(employee.id, pay)
-        end
-    end
-
-    -- Notify
-    TriggerClientEvent('ox_lib:notify', src, {
-        title = locale('notify_title'),
-        description = locale('mission_complete_summary', pay, xp),
-        type = 'success',
-        duration = 7000,
-    })
-
-    -- Tell client to refresh any open station data
+    NotifyPlayer(src, locale('mission_complete_summary', pay, xp), 'success', 7000)
     TriggerClientEvent('rsg-railroad:refreshStationData', src, companyId)
 
-    -- Check railwayman rewards
     CheckRailwaymanRewards(src, citizenid, companyId)
 end)
 
 ----------------------------------------------------------------
 -- CHECK RAILWAYMAN REWARDS
 ----------------------------------------------------------------
+-- Called after a mission; each milestone can only ever be claimed once.
 function CheckRailwaymanRewards(src, citizenid, companyId)
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return end
@@ -172,7 +139,9 @@ function CheckRailwaymanRewards(src, citizenid, companyId)
 
             if met then
                 DB.ClaimReward(citizenid, reward.id)
-                Player.Functions.AddMoney('cash', reward.cashReward)
+                if reward.cashReward > 0 then
+                    Player.Functions.AddMoney('cash', reward.cashReward, 'railroad-milestone')
+                end
                 if companyId and reward.xpReward > 0 then
                     DB.AddCompanyXP(citizenid, companyId, reward.xpReward)
                 end
@@ -186,3 +155,7 @@ function CheckRailwaymanRewards(src, citizenid, companyId)
         end
     end
 end
+
+AddEventHandler('playerDropped', function()
+    lastMissionAt[source] = nil
+end)

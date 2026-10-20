@@ -199,6 +199,21 @@ end)
 
 AddEventHandler('onResourceStart', function(resourceName)
     if resourceName ~= GetCurrentResourceName() then return end
+
+    -- Startup diagnostics. If you click "Train Storage" in game and nothing at
+    -- all happens, check for these lines -- their absence means this file was
+    -- never loaded (usually it wasn't copied to the server, or fxmanifest.lua
+    -- is stale and needs a `refresh`).
+    print('[rsg-railroad] train storage module loaded')
+    if not Config.TrainStorage then
+        print('[rsg-railroad] WARNING: Config.TrainStorage is missing -- config is out of date, storage will not appear')
+    elseif not Config.TrainStorage.Enabled then
+        print('[rsg-railroad] train storage is DISABLED in config')
+    end
+    if GetResourceState('rsg-inventory') ~= 'started' then
+        print(('[rsg-railroad] WARNING: rsg-inventory is "%s" (expected "started") -- train storage cannot open'):format(GetResourceState('rsg-inventory')))
+    end
+
     if not Config.TrainStorage or not Config.TrainStorage.Enabled then return end
     -- Backslash escapes the '_' so it is a literal, not a single-char wildcard.
     MySQL.query('DELETE FROM inventories WHERE identifier LIKE ?', { 'train\\_%' }, function(affected)

@@ -19,8 +19,9 @@ function DB.InsertTrain(citizenid, companyId, model, label, fuel, water, conditi
     )
 end
 
+-- Returns the number of rows deleted so callers can detect a double-sell race.
 function DB.DeleteTrain(trainId, citizenid)
-    MySQL.query.await('DELETE FROM railroad_trains WHERE id = @id AND citizenid = @cid', { ['@id'] = trainId, ['@cid'] = citizenid })
+    return MySQL.update.await('DELETE FROM railroad_trains WHERE id = @id AND citizenid = @cid', { ['@id'] = trainId, ['@cid'] = citizenid })
 end
 
 function DB.UpdateTrainFuel(trainId, fuel)
@@ -53,10 +54,6 @@ function DB.AddMiles(trainId, miles)
     MySQL.query.await('UPDATE railroad_trains SET total_miles = total_miles + @miles WHERE id = @id', { ['@id'] = trainId, ['@miles'] = miles })
 end
 
-function DB.UpdateUpgrade(trainId, upgradeColumn, level)
-    MySQL.query.await('UPDATE railroad_trains SET `' .. upgradeColumn .. '` = @lvl WHERE id = @id', { ['@id'] = trainId, ['@lvl'] = level })
-end
-
 function DB.CountTrains(citizenid)
     local result = MySQL.query.await('SELECT COUNT(*) as cnt FROM railroad_trains WHERE citizenid = @cid', { ['@cid'] = citizenid })
     return result and result[1] and result[1].cnt or 0
@@ -65,10 +62,6 @@ end
 ---------------------------------------------------------------
 -- COMPANIES
 ---------------------------------------------------------------
-function DB.GetCompanyData(citizenid)
-    return MySQL.query.await('SELECT * FROM railroad_companies WHERE citizenid = @cid', { ['@cid'] = citizenid })
-end
-
 function DB.GetCompanyMembership(citizenid, companyId)
     local result = MySQL.query.await('SELECT * FROM railroad_companies WHERE citizenid = @cid AND company_id = @comp LIMIT 1',
         { ['@cid'] = citizenid, ['@comp'] = companyId })
@@ -140,12 +133,12 @@ function DB.GetOwnedCompaniesByCitizen(citizenid)
 end
 
 function DB.PurchaseCompany(companyId, citizenid, ownerName)
-    MySQL.insert.await('INSERT INTO railroad_companies_owned (company_id, owner_citizenid, owner_name) VALUES (@comp, @cid, @name)',
+    return MySQL.insert.await('INSERT INTO railroad_companies_owned (company_id, owner_citizenid, owner_name) VALUES (@comp, @cid, @name)',
         { ['@comp'] = companyId, ['@cid'] = citizenid, ['@name'] = ownerName })
 end
 
 function DB.SellCompany(companyId, citizenid)
-    MySQL.query.await('DELETE FROM railroad_companies_owned WHERE company_id = @comp AND owner_citizenid = @cid',
+    return MySQL.update.await('DELETE FROM railroad_companies_owned WHERE company_id = @comp AND owner_citizenid = @cid',
         { ['@comp'] = companyId, ['@cid'] = citizenid })
 end
 
@@ -169,8 +162,9 @@ function DB.AddToCashRegister(companyId, amount)
         { ['@comp'] = companyId, ['@amt'] = amount })
 end
 
+-- Atomic: only succeeds when the register holds enough. Returns affected rows (0 or 1).
 function DB.WithdrawFromCashRegister(companyId, amount)
-    MySQL.query.await('UPDATE railroad_companies_owned SET cash_register = cash_register - @amt WHERE company_id = @comp',
+    return MySQL.update.await('UPDATE railroad_companies_owned SET cash_register = cash_register - @amt WHERE company_id = @comp AND cash_register >= @amt',
         { ['@comp'] = companyId, ['@amt'] = amount })
 end
 
@@ -235,26 +229,26 @@ function DB.GetPendingApplications(companyId)
         { ['@comp'] = companyId, ['@status'] = 'pending' }) or {}
 end
 
-function DB.ApproveEmployee(employeeId)
-    MySQL.query.await('UPDATE railroad_employees SET status = @status, approved_at = NOW() WHERE id = @id',
-        { ['@id'] = employeeId, ['@status'] = 'approved' })
+-- All employee mutations are scoped to company_id so an owner can only
+-- act on employees of their own company.
+function DB.GetEmployeeById(companyId, employeeId)
+    local result = MySQL.query.await('SELECT * FROM railroad_employees WHERE id = @id AND company_id = @comp LIMIT 1',
+        { ['@id'] = employeeId, ['@comp'] = companyId })
+    return result and result[1] or nil
 end
 
-function DB.RejectEmployee(employeeId)
-    MySQL.query.await('UPDATE railroad_employees SET status = @status WHERE id = @id',
-        { ['@id'] = employeeId, ['@status'] = 'rejected' })
+function DB.ApproveEmployee(companyId, employeeId)
+    return MySQL.update.await('UPDATE railroad_employees SET status = @status, approved_at = NOW() WHERE id = @id AND company_id = @comp AND status = @pending',
+        { ['@id'] = employeeId, ['@comp'] = companyId, ['@status'] = 'approved', ['@pending'] = 'pending' })
 end
 
-function DB.FireEmployee(employeeId)
-    MySQL.query.await('DELETE FROM railroad_employees WHERE id = @id', { ['@id'] = employeeId })
+function DB.RejectEmployee(companyId, employeeId)
+    return MySQL.update.await('UPDATE railroad_employees SET status = @status WHERE id = @id AND company_id = @comp AND status = @pending',
+        { ['@id'] = employeeId, ['@comp'] = companyId, ['@status'] = 'rejected', ['@pending'] = 'pending' })
 end
 
-function DB.AddEmployeeXP(employeeId, xp)
-    MySQL.query.await('UPDATE railroad_employees SET xp = xp + @xp WHERE id = @id', { ['@id'] = employeeId, ['@xp'] = xp })
-end
-
-function DB.SetEmployeeRank(employeeId, rank)
-    MySQL.query.await('UPDATE railroad_employees SET `rank` = @rank WHERE id = @id', { ['@id'] = employeeId, ['@rank'] = rank })
+function DB.FireEmployee(companyId, employeeId)
+    return MySQL.update.await('DELETE FROM railroad_employees WHERE id = @id AND company_id = @comp', { ['@id'] = employeeId, ['@comp'] = companyId })
 end
 
 function DB.IncrementEmployeeMissions(employeeId)
@@ -293,8 +287,9 @@ function DB.AddSupplyItem(companyId, itemName, quantity)
     end
 end
 
+-- Atomic: returns affected rows (0 when stock was insufficient).
 function DB.TakeSupplyItem(companyId, itemName, quantity)
-    MySQL.query.await('UPDATE railroad_company_supplies SET quantity = quantity - @qty WHERE company_id = @comp AND item_name = @item AND quantity >= @qty',
+    return MySQL.update.await('UPDATE railroad_company_supplies SET quantity = quantity - @qty WHERE company_id = @comp AND item_name = @item AND quantity >= @qty',
         { ['@comp'] = companyId, ['@item'] = itemName, ['@qty'] = quantity })
 end
 

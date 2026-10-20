@@ -24,10 +24,9 @@ html, body {
     height: 100%;
     background: transparent;
     overflow: hidden;
+    user-select: none;
     font-family: 'Roboto', sans-serif;
 }
-
-
 
 .hidden { display: none !important; }
 
@@ -228,11 +227,13 @@ html, body {
     transition: transform .15s ease, border-color .15s ease, background .15s ease, opacity .25s ease;
 }
 .row-card:hover {
-    border-color: var(--rdr-gold-dim);
+    border-color: var(--rdr-gold);
     background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.2));
     transform: translateX(2px);
 }
 .row-card.disabled { opacity: 0.45; cursor: not-allowed; }
+.row-card.disabled:hover { transform: none; border-color: rgba(201,162,75,0.18); }
+.row-card.selected { border-color: var(--rdr-gold-dim); background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.2)); }
 
 .badge-icon {
     width: 34px;
@@ -533,47 +534,6 @@ html, body {
     background: rgba(0,0,0,0.3);
 }
 
-/* ========== TOASTS ========== */
-.toast-wrap {
-    position: fixed;
-    right: 18px;
-    bottom: 18px;
-    z-index: 60;
-    display: flex;
-    flex-direction: column-reverse;
-    gap: 10px;
-}
-.toast {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    width: 300px;
-    padding: 10px 12px;
-    border: 1px solid var(--rdr-gold-dim);
-    border-left: 4px solid var(--rdr-gold);
-    border-radius: 3px;
-    background-image:
-        linear-gradient(160deg, var(--rdr-panel-2), var(--rdr-panel) 60%, var(--rdr-black)),
-        repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0 1px, transparent 1px 3px);
-    box-shadow: 0 12px 30px var(--rdr-shadow);
-    animation: toastIn .25s ease;
-}
-.toast.success { border-left-color: var(--rdr-cost-ok); }
-.toast.error { border-left-color: var(--rdr-cost-over); }
-.toast.info { border-left-color: var(--rdr-gold); }
-.toast-label {
-    font-size: 8.5px;
-    font-weight: 600;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--rdr-muted);
-}
-.toast-msg { font-size: 11.5px; color: var(--rdr-text); }
-@keyframes toastIn {
-    from { opacity: 0; transform: translateX(30px); }
-    to { opacity: 1; transform: translateX(0); }
-}
-
 /* ========== MODALS ========== */
 .modal-root {
     position: fixed;
@@ -609,3 +569,11 @@ html, body {
 }
 .modal-body { font-size: 12px; line-height: 1.55; color: var(--rdr-text); }
 .modal-actions { display: flex; gap: 8px; justify-content: center; }
+.modal-divider { width: 70%; margin: 0 auto; }
+.modal-root { animation: fadeIn .2s ease; }
+.modal-card { animation: modalIn .25s ease; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modalIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}

@@ -59,33 +59,36 @@ RegisterNetEvent('rsg-railroad:buyCompany', function(companyId)
     -- Check if already owned
     local existing = DB.GetCompanyOwnership(companyId)
     if existing then
-        TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('company_already_owned'), type = 'error', duration = 5000 })
+        NotifyPlayer(src, locale('company_already_owned'), 'error')
         return
     end
 
     -- Check if player already owns a company
     local ownedByPlayer = DB.GetOwnedCompaniesByCitizen(citizenid)
     if #ownedByPlayer > 0 then
-        TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('already_own_company'), type = 'error', duration = 5000 })
+        NotifyPlayer(src, locale('already_own_company'), 'error')
         return
     end
 
-    -- Check money
     local price = Config.CompanyPurchasePrice
-    local cash = Player.PlayerData.money['cash'] or 0
-    if cash < price then
-        TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('not_enough_money'), type = 'error', duration = 5000 })
+    if not Player.Functions.RemoveMoney('cash', price, 'railroad-buy-company') then
+        NotifyPlayer(src, locale('not_enough_money'), 'error')
         return
     end
 
-    local charinfo = Player.PlayerData.charinfo
-    local ownerName = (charinfo.firstname or '') .. ' ' .. (charinfo.lastname or '')
+    local ownerName = GetPlayerFullName(Player)
 
-    Player.Functions.RemoveMoney('cash', price)
-    DB.PurchaseCompany(companyId, citizenid, ownerName)
+    -- company_id is the primary key, so a simultaneous purchase by two
+    -- players fails the insert for one of them -> refund that player.
+    local ok, inserted = pcall(DB.PurchaseCompany, companyId, citizenid, ownerName)
+    if not ok or not inserted then
+        Player.Functions.AddMoney('cash', price, 'railroad-buy-company-refund')
+        NotifyPlayer(src, locale('company_already_owned'), 'error')
+        return
+    end
 
-    local companyLabel = Config.Companies[companyId] and Config.Companies[companyId].label or companyId
-    TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('company_purchased', companyLabel), type = 'success', duration = 7000 })
+    local companyLabel = CompanyLabel(companyId)
+    NotifyPlayer(src, locale('company_purchased', companyLabel), 'success', 7000)
 
     Webhook.SendFields('economy', 'Company Purchased', {
         { 'Player', ownerName .. ' (' .. citizenid .. ')' },
@@ -108,7 +111,7 @@ RegisterNetEvent('rsg-railroad:sellCompany', function(companyId)
     local citizenid = Player.PlayerData.citizenid
     local ownership = DB.GetCompanyOwnership(companyId)
     if not ownership or ownership.owner_citizenid ~= citizenid then
-        TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('not_owner_of_company'), type = 'error', duration = 5000 })
+        NotifyPlayer(src, locale('not_owner_of_company'), 'error')
         return
     end
 
@@ -117,17 +120,18 @@ RegisterNetEvent('rsg-railroad:sellCompany', function(companyId)
     -- Add cash register balance to refund
     refund = refund + math.floor(ownership.cash_register or 0)
 
-    -- Clean up: delete employees, supplies, company record
+    -- Delete the ownership row first; only the call that actually removed
+    -- it gets paid (blocks double-sell spam).
+    if (DB.SellCompany(companyId, citizenid) or 0) < 1 then return end
     DB.DeleteEmployeesByCompany(companyId)
     DB.DeleteSuppliesByCompany(companyId)
-    DB.SellCompany(companyId, citizenid)
 
-    Player.Functions.AddMoney('cash', refund)
-    TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('company_sold', refund), type = 'success', duration = 7000 })
+    Player.Functions.AddMoney('cash', refund, 'railroad-sell-company')
+    NotifyPlayer(src, locale('company_sold', refund), 'success', 7000)
 
     Webhook.SendFields('economy', 'Company Sold', {
         { 'Player', GetPlayerFullName(Player) .. ' (' .. citizenid .. ')' },
-        { 'Company', Config.Companies[companyId] and Config.Companies[companyId].label or companyId },
+        { 'Company', CompanyLabel(companyId) },
         { 'Refund', '$' .. refund },
     }, 'info')
 
@@ -147,13 +151,16 @@ RegisterNetEvent('rsg-railroad:renameCompany', function(companyId, newName)
     local ownership = DB.GetCompanyOwnership(companyId)
     if not ownership or ownership.owner_citizenid ~= citizenid then return end
 
-    if not newName or #newName < 3 or #newName > 50 then
-        TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('company_name_length'), type = 'error', duration = 5000 })
+    if type(newName) == 'string' then
+        newName = newName:gsub('[%c<>]', ''):gsub('^%s+', ''):gsub('%s+$', '')
+    end
+    if type(newName) ~= 'string' or #newName < 3 or #newName > 50 then
+        NotifyPlayer(src, locale('company_name_length'), 'error')
         return
     end
 
     DB.SetCompanyName(companyId, newName)
-    TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('company_renamed', newName), type = 'success', duration = 5000 })
+    NotifyPlayer(src, locale('company_renamed', newName), 'success')
 
     Webhook.SendFields('economy', 'Company Renamed', {
         { 'Player', GetPlayerFullName(Player) .. ' (' .. citizenid .. ')' },
@@ -173,27 +180,26 @@ RegisterNetEvent('rsg-railroad:withdrawFunds', function(companyId, amount)
     local citizenid = Player.PlayerData.citizenid
     local ownership = DB.GetCompanyOwnership(companyId)
     if not ownership or ownership.owner_citizenid ~= citizenid then
-        TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('not_owner_of_company'), type = 'error', duration = 5000 })
+        NotifyPlayer(src, locale('not_owner_of_company'), 'error')
         return
     end
 
-    amount = tonumber(amount) or 0
+    amount = math.floor(tonumber(amount) or 0)
     if amount <= 0 then return end
 
-    local balance = DB.GetCashRegister(companyId)
-    if amount > balance then
-        TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('insufficient_register_funds', math.floor(balance)), type = 'error', duration = 5000 })
+    -- Atomic: the UPDATE only applies when the register still holds enough.
+    if (DB.WithdrawFromCashRegister(companyId, amount) or 0) < 1 then
+        NotifyPlayer(src, locale('insufficient_register_funds', math.floor(DB.GetCashRegister(companyId))), 'error')
         return
     end
 
-    DB.WithdrawFromCashRegister(companyId, amount)
-    Player.Functions.AddMoney('cash', math.floor(amount))
-    TriggerClientEvent('ox_lib:notify', src, { title = locale('notify_title'), description = locale('funds_withdrawn', math.floor(amount)), type = 'success', duration = 5000 })
+    Player.Functions.AddMoney('cash', amount, 'railroad-register-withdraw')
+    NotifyPlayer(src, locale('funds_withdrawn', amount), 'success')
 
     Webhook.SendFields('economy', 'Funds Withdrawn', {
         { 'Player', GetPlayerFullName(Player) .. ' (' .. citizenid .. ')' },
-        { 'Company', Config.Companies[companyId] and Config.Companies[companyId].label or companyId },
-        { 'Amount', '$' .. math.floor(amount) },
+        { 'Company', CompanyLabel(companyId) },
+        { 'Amount', '$' .. amount },
     }, 'warn')
 end)
 
@@ -201,18 +207,20 @@ end)
 -- COMPANY STATS (for Records tab)
 ---------------------------------------------------------------
 lib.callback.register('rsg-railroad:getCompanyStats', function(source, companyId)
+    local Player = RSGCore.Functions.GetPlayer(source)
+    if not Player or GetCompanyRole(companyId, Player.PlayerData.citizenid) ~= 'owner' then return {} end
     local employees = DB.GetEmployeesByCompany(companyId) or {}
     local ownership = DB.GetCompanyOwnership(companyId)
 
     local totalDrivers = 0
     local totalMissions = 0
     local totalEarnings = 0
-    local topEarner = 'None'
+    local topEarner = nil
     local topEarnings = 0
-    local mostMissionsName = 'None'
+    local mostMissionsName = nil
     local mostMissionsCount = 0
     local highestRank = 0
-    local highestRankName = 'None'
+    local highestRankName = nil
 
     for _, emp in ipairs(employees) do
         if emp.status == 'approved' then
@@ -234,7 +242,7 @@ lib.callback.register('rsg-railroad:getCompanyStats', function(source, companyId
         end
     end
 
-    local highestRankLabel = Config.Ranks[highestRank] and Config.Ranks[highestRank].label or '-'
+    local highestRankLabel = Config.Ranks[highestRank] and Config.Ranks[highestRank].label or nil
 
     return {
         total_drivers = totalDrivers,
