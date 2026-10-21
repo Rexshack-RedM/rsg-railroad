@@ -216,8 +216,9 @@ AddEventHandler('onResourceStart', function(resourceName)
 
     if not Config.TrainStorage or not Config.TrainStorage.Enabled then return end
     -- Backslash escapes the '_' so it is a literal, not a single-char wildcard.
-    MySQL.query('DELETE FROM inventories WHERE identifier LIKE ?', { 'train\\_%' }, function(affected)
-        if affected and affected > 0 then
+    MySQL.update('DELETE FROM inventories WHERE identifier LIKE ?', { 'train\\_%' }, function(affected)
+        if type(affected) == 'table' then affected = affected.affectedRows end
+        if (tonumber(affected) or 0) > 0 then
             print(('[rsg-railroad] Cleared %s orphaned train storage stash(es)'):format(affected))
         end
     end)
