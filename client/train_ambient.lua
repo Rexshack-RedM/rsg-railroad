@@ -201,7 +201,7 @@ function FindNearestName(coords)
     return nearestName
 end
 
-RegisterCommand('trainpos', function()
+RegisterNetEvent('rsg-railroad:client:trainpos', function()
     local options = {}
 
     if ActiveTrain and DoesEntityExist(ActiveTrain) then
@@ -229,9 +229,9 @@ RegisterCommand('trainpos', function()
 
     lib.registerContext({ id = 'trainpos_menu', title = locale('menu_train_locations'), options = options })
     lib.showContext('trainpos_menu')
-end, false)
+end)
 
-RegisterCommand('setjunction', function(source, args)
+RegisterNetEvent('rsg-railroad:client:setjunction', function(args)
     if #args < 3 then
         print('Usage: /setjunction <trackName> <junctionIndex> <0|1>')
         print('Example: /setjunction TRAINS_OLD_WEST03 2 1')
@@ -243,4 +243,4 @@ RegisterCommand('setjunction', function(source, args)
     SetTrainTrackJunctionSwitch(hash, idx, enabled)
     Citizen.InvokeNative(0x3ABFA128F5BF5A70, hash, idx, enabled and 1 or 0)
     print(string.format('Set junction: hash=%d (%s), idx=%d, enabled=%s', hash, args[1], idx, tostring(enabled)))
-end, false)
+end)
