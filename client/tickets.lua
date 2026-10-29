@@ -1,4 +1,33 @@
 ---------------------------------------------------------------
+-- MARKER: is this entity a train deployed by THIS script?
+-- Trains from other resources (e.g. a separate trams script) must NOT
+-- be touched by the ticket thread below.
+---------------------------------------------------------------
+local function GetRailroadCompany(train)
+    if train == 0 then return nil end
+    -- Own deployed train: always ours
+    if ActiveTrain and train == ActiveTrain and ActiveTrainConfig then
+        return ActiveTrainConfig.company
+    end
+    -- Our ambient / route trains carry a replicated state flag.
+    -- Trams from the other script never have it, even if they share
+    -- the same model (e.g. appleseed_config), so they return nil.
+    local ok, isOurs = pcall(function() return Entity(train).state['rsg-railroad:train'] end)
+    if ok and isOurs then
+        local pcoords = GetEntityCoords(cache.ped)
+        local nearestDist, nearestCompany = math.huge, nil
+        for _, station in ipairs(Config.Stations) do
+            local dist = #(pcoords - station.coords)
+            if dist < nearestDist then
+                nearestDist, nearestCompany = dist, station.company
+            end
+        end
+        return nearestCompany
+    end
+    return nil -- foreign train (e.g. tram) -> ignore
+end
+
+---------------------------------------------------------------
 -- TRAIN TICKETS (passenger side)
 -- When the player boards a train they are NOT driving, the server
 -- consumes a ticket (or charges the on-board markup). No ticket and no
@@ -8,19 +37,7 @@ local onTrain = false
 local ticketed = false -- true once this ride was paid for
 
 local function GetTicketCompany(train)
-    if train ~= 0 and ActiveTrain and train == ActiveTrain and ActiveTrainConfig then
-        return ActiveTrainConfig.company
-    end
-
-    local pcoords = GetEntityCoords(cache.ped)
-    local nearestDist, nearestCompany = math.huge, nil
-    for _, station in ipairs(Config.Stations) do
-        local dist = #(pcoords - station.coords)
-        if dist < nearestDist then
-            nearestDist, nearestCompany = dist, station.company
-        end
-    end
-    return nearestCompany
+    return GetRailroadCompany(train)
 end
 
 local function KickOffTrain()
@@ -64,8 +81,11 @@ CreateThread(function()
         if inTrain and not onTrain then
             onTrain = true
             local train = GetVehiclePedIsIn(ped, false)
+            if train ~= 0 and GetTicketCompany(train) == nil then
+                -- Foreign train (e.g. tram from another script): ignore entirely
+                ticketed = false
             -- Driving your own train (or riding it as its spawner) is free
-            if not (ActiveTrain and train == ActiveTrain) then
+            elseif not (ActiveTrain and train == ActiveTrain) then
                 CheckTicket(train)
             end
         elseif not inTrain and onTrain then

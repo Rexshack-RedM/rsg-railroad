@@ -19,6 +19,9 @@ local function SpawnTrain(trainid, route, trainhash, startcoords, direction)
     SetTrainSpeed(train, 0.0)
     SetModelAsNoLongerNeeded(train)
     NetworkRegisterEntityAsNetworked(train)
+    if train ~= 0 and DoesEntityExist(train) then
+        pcall(function() Entity(train).state:set('rsg-railroad:train', true, true) end)
+    end
     return train
 end
 

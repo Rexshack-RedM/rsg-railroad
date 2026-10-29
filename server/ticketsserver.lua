@@ -33,6 +33,8 @@ end
 
 lib.callback.register('rsg-railroad:server:useTicket', function(source, companyId)
     local src = source
+    -- Foreign train (e.g. tram from another script): no ticket handling
+    if not companyId or not Config.Companies[companyId] then return 'has_ticket' end
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return 'no_ticket' end
 
