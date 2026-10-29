@@ -83,10 +83,6 @@ function SpawnPlayerTrain(trainDbId, directionReverse, station)
     TrainCondition = trainData.condition
     EngineRunning = false
 
-    if ActiveTrain and DoesEntityExist(ActiveTrain) then
-        pcall(function() Entity(ActiveTrain).state:set('rsg-railroad:train', true, true) end)
-    end
-
     -- Tell server we spawned
     TriggerServerEvent('rsg-railroad:setTrainSpawned', true, trainData.id, trainData.train_model)
 
@@ -155,10 +151,6 @@ function SpawnConfigTrain(trainConfig, directionReverse, station)
     TrainWater = ActiveTrainData.water
     TrainCondition = ActiveTrainData.condition
     EngineRunning = false
-
-    if ActiveTrain and DoesEntityExist(ActiveTrain) then
-        pcall(function() Entity(ActiveTrain).state:set('rsg-railroad:train', true, true) end)
-    end
 
     TriggerServerEvent('rsg-railroad:setTrainSpawned', true, 0, trainConfig.model)
 
@@ -685,9 +677,6 @@ function SetupTrainTarget()
                 LoadTrainCars(trainHash)
                 local hasCarriages = savedConfig.hasPassengerCars or false
                 ActiveTrain = Citizen.InvokeNative(0xC239DBD9A57D2A71, trainHash, trainCoords.x, trainCoords.y, trainCoords.z, newReversed, hasCarriages, true, false)
-                if ActiveTrain ~= 0 and DoesEntityExist(ActiveTrain) then
-                    pcall(function() Entity(ActiveTrain).state:set('rsg-railroad:train', true, true) end)
-                end
                 SetTrainSpeed(ActiveTrain, 0.0)
                 SetTrainCruiseSpeed(ActiveTrain, 0.0)
                 Citizen.InvokeNative(0x05254BA0B44ADC16, ActiveTrain, false)

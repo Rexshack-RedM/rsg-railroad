@@ -1,33 +1,4 @@
 ---------------------------------------------------------------
--- MARKER: is this entity a train deployed by THIS script?
--- Trains from other resources (e.g. a separate trams script) must NOT
--- be touched by the ticket thread below.
----------------------------------------------------------------
-local function GetRailroadCompany(train)
-    if train == 0 then return nil end
-    -- Own deployed train: always ours
-    if ActiveTrain and train == ActiveTrain and ActiveTrainConfig then
-        return ActiveTrainConfig.company
-    end
-    -- Our ambient / route trains carry a replicated state flag.
-    -- Trams from the other script never have it, even if they share
-    -- the same model (e.g. appleseed_config), so they return nil.
-    local ok, isOurs = pcall(function() return Entity(train).state['rsg-railroad:train'] end)
-    if ok and isOurs then
-        local pcoords = GetEntityCoords(cache.ped)
-        local nearestDist, nearestCompany = math.huge, nil
-        for _, station in ipairs(Config.Stations) do
-            local dist = #(pcoords - station.coords)
-            if dist < nearestDist then
-                nearestDist, nearestCompany = dist, station.company
-            end
-        end
-        return nearestCompany
-    end
-    return nil -- foreign train (e.g. tram) -> ignore
-end
-
----------------------------------------------------------------
 -- TRAIN TICKETS (passenger side)
 -- When the player boards a train they are NOT driving, the server
 -- consumes a ticket (or charges the on-board markup). No ticket and no
@@ -37,7 +8,19 @@ local onTrain = false
 local ticketed = false -- true once this ride was paid for
 
 local function GetTicketCompany(train)
-    return GetRailroadCompany(train)
+    if train ~= 0 and ActiveTrain and train == ActiveTrain and ActiveTrainConfig then
+        return ActiveTrainConfig.company
+    end
+
+    local pcoords = GetEntityCoords(cache.ped)
+    local nearestDist, nearestCompany = math.huge, nil
+    for _, station in ipairs(Config.Stations) do
+        local dist = #(pcoords - station.coords)
+        if dist < nearestDist then
+            nearestDist, nearestCompany = dist, station.company
+        end
+    end
+    return nearestCompany
 end
 
 local function KickOffTrain()
@@ -73,6 +56,37 @@ local function CheckTicket(train)
     end
 end
 
+-- Trolleys run their own fare system (rsg-trams). Skip them by the state bag that
+-- rsg-trams sets on every car, and fall back to the trolley model in case the bag
+-- hasn't synced yet when the player boards.
+local FREE_MODELS = {
+    [`trolley01x`] = true,
+}
+
+local function IsOwnFareVehicle(veh)
+    if veh == 0 or not DoesEntityExist(veh) then return false end
+    if Entity(veh).state.ownFare or Entity(veh).state.rsgTram then return true end
+    return FREE_MODELS[GetEntityModel(veh)] == true
+end
+
+-- While boarding, IsPedInAnyTrain is already true but GetVehiclePedIsIn(ped, false)
+-- can still be 0, so try every way of finding the car the ped is getting into.
+local function GetBoardedTrain(ped)
+    local veh = GetVehiclePedIsIn(ped, false)
+    if veh == 0 then veh = GetVehiclePedIsUsing(ped) end
+    if veh == 0 then veh = GetVehiclePedIsIn(ped, true) end
+    return veh
+end
+
+-- Backup: any rsg-trams trolley (or one of its cars) right next to the player
+local function NearTrolley(ped)
+    local pcoords = GetEntityCoords(ped)
+    for _, veh in ipairs(GetGamePool('CVehicle')) do
+        if IsOwnFareVehicle(veh) and #(GetEntityCoords(veh) - pcoords) < 12.0 then return true end
+    end
+    return false
+end
+
 CreateThread(function()
     while true do
         local ped = cache.ped
@@ -80,12 +94,9 @@ CreateThread(function()
 
         if inTrain and not onTrain then
             onTrain = true
-            local train = GetVehiclePedIsIn(ped, false)
-            if train ~= 0 and GetTicketCompany(train) == nil then
-                -- Foreign train (e.g. tram from another script): ignore entirely
-                ticketed = false
-            -- Driving your own train (or riding it as its spawner) is free
-            elseif not (ActiveTrain and train == ActiveTrain) then
+            local train = GetBoardedTrain(ped)
+            -- Driving your own train is free, and trolleys (rsg-trams) charge their own fare
+            if not (ActiveTrain and train == ActiveTrain) and not IsOwnFareVehicle(train) and not NearTrolley(ped) then
                 CheckTicket(train)
             end
         elseif not inTrain and onTrain then
